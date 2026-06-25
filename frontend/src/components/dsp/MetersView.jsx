@@ -44,6 +44,7 @@ const MeterPeakDb = ({ channelId, source, testId }) => {
   React.useEffect(() => {
     let p = 0;
     let lastDrop = performance.now();
+    let lastDecay = performance.now();
     let raf;
     const tick = (t) => {
       const lvl =
@@ -55,8 +56,10 @@ const MeterPeakDb = ({ channelId, source, testId }) => {
       if (lvl > p) {
         p = lvl;
         lastDrop = t;
-      } else if (t - lastDrop > 1500) {
+      } else if (t - lastDrop > 1500 && t - lastDecay > 50) {
+        // Rate-limited decay (~20 Hz) for a smoother pro peak-hold feel.
         p = Math.max(0, p * 0.95);
+        lastDecay = t;
       }
       setPeak(dbFromLevel(p));
       raf = requestAnimationFrame(tick);
@@ -120,9 +123,9 @@ const MetersView = () => {
           </p>
         </div>
         <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-500">
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#00FF41" }} /> 0 to -6 dB</div>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FFB800" }} /> -6 to -2 dB</div>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FF0000" }} /> &gt; -2 dB</div>
+          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#00FF41" }} /> nominal</div>
+          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FFB800" }} /> headroom</div>
+          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FF0000" }} /> clip</div>
         </div>
       </div>
 
