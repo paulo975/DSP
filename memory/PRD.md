@@ -33,6 +33,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - ✅ **Yamaha-style SelectedChannelPanel** above the strips: huge parametric EQ with 5 numbered draggable colored band markers on the curve (red / orange / yellow / green / cyan), live band readouts, compressor DYN transfer curve, master fader with dB scale (+10 / 0 / -10 / -20 / -40 / -60) flanked by IN/OUT meters, MUTE/SOLO/EQ-ON/COMP/LIM toggles, and an inline 5-band detail editor (Freq/Gain/Q).
 - ✅ **ChannelPills** row with bank tabs (PHY OUT / DANTE VIRT OUT) and Yamaha-style pill selector buttons; selected pill turns cyan.
 - ✅ Channel strips show **cyan "▸ SELECTED" label** and cyan border when their channel is active in the panel; clicking strip header also selects it.
+- ✅ **Pink Noise generator per output channel** (DSP calibration tool) — Paul Kellet's economy algorithm, 5-second looped buffer shared across all chains. Master broadcast in TopBar ("ALL ON" + level slider) + per-strip pink toggle + dedicated PN slider in SelectedChannelPanel header. Pink noise feeds the chain input so it goes through HPF/LPF/EQ/COMP/DELAY/PAN (test the whole chain).
 - ✅ 32 (or 16) channel strips with full Crossover, EQ access, Comp access, Delay (ms/mm/inch with live ms-equivalent readout), Pan, Fader, Mute, Solo, Meter, Reset.
 - ✅ EQ modal: 5-band parametric (lowshelf / 3×peaking / highshelf) with live curve preview (Recharts log-X 20 Hz–20 kHz), bypass toggle.
 - ✅ Dynamics modal: Compressor (threshold, ratio, attack, release, knee, makeup) + Limiter (ceiling).
@@ -50,6 +51,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 1 (2026-01-25)**: 14/14 frontend flows passed including the critical localStorage persistence test (delay value 7.7 ms set, page reloaded, value restored). Report: `/app/test_reports/iteration_1.json`.
 - **Iteration 2 (2026-01-25)**: 15/15 passed after channel-strip redesign — new input meter + larger output meter validated, no regressions on legacy testids, persistence intact. Report: `/app/test_reports/iteration_2.json`.
 - **Iteration 3 (2026-01-25)**: 14/14 passed after Yamaha-style SelectedChannelPanel + ChannelPills + InlineEqGraph (5 draggable colored band markers) + CompCurve added. Selection state is intentionally non-persistent; DSP config persistence still works. Report: `/app/test_reports/iteration_3.json`.
+- **Iteration 4 (2026-01-25)**: 100% passed after Pink Noise generator added on all channels (per-output BufferSource w/ Paul Kellet algorithm, master broadcast UI, per-strip toggle, SelectedChannelPanel fine control). Legacy state migration verified. Report: `/app/test_reports/iteration_4.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
