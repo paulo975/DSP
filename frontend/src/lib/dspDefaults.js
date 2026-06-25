@@ -54,6 +54,7 @@ export const defaultChannel = (idx, kind) => ({
     makeup: 0,
   },
   limiter: { enabled: false, ceiling: -0.3 },
+  pinkNoise: { enabled: false, level: -20 }, // -60..0 dB, fed into chain input
 });
 
 export const buildInitialState = (versionId) => {

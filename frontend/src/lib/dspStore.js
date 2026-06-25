@@ -15,6 +15,11 @@ const loadFromStorage = () => {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed?.version || !VERSIONS[parsed.version]) return null;
+    // Migrate older states that pre-date some channel fields.
+    parsed.outputs = (parsed.outputs || []).map((o) => ({
+      ...o,
+      pinkNoise: o.pinkNoise || { enabled: false, level: -20 },
+    }));
     return parsed;
   } catch (err) {
     console.warn("[dspStore] Failed to load state from localStorage:", err);
@@ -74,6 +79,16 @@ const reducer = (state, action) => {
       const outputs = state.outputs.map((o) => (o.id === action.id ? freshOut : o));
       return { ...state, outputs };
     }
+    case "setAllPinkNoise": {
+      const outputs = state.outputs.map((o) => ({
+        ...o,
+        pinkNoise: {
+          enabled: action.enabled !== undefined ? action.enabled : o.pinkNoise?.enabled ?? false,
+          level: action.level !== undefined ? action.level : o.pinkNoise?.level ?? -20,
+        },
+      }));
+      return { ...state, outputs };
+    }
     default:
       return state;
   }
@@ -128,6 +143,7 @@ export const DspProvider = ({ children }) => {
       setVersion: (version) => dispatch({ type: "setVersion", version }),
       setMaster: (patch) => dispatch({ type: "setMaster", patch }),
       resetChannel: (id) => dispatch({ type: "resetChannel", id }),
+      setAllPinkNoise: (enabled, level) => dispatch({ type: "setAllPinkNoise", enabled, level }),
       loadPresetState: (s) => dispatch({ type: "loadPreset", state: s }),
     }),
     [state],

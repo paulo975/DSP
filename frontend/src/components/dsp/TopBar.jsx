@@ -4,11 +4,17 @@ import { VERSIONS } from "@/lib/dspDefaults";
 import { audioEngine } from "@/lib/audioEngine";
 
 const TopBar = ({ tab, setTab, onOpenPresets }) => {
-  const { state, setVersion, setMaster } = useDsp();
+  const { state, setVersion, setMaster, setAllPinkNoise } = useDsp();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [showVersionConfirm, setShowVersionConfirm] = useState(null);
+
+  // Derive pink noise master state from outputs:
+  // "ALL ON" = every output has pinkNoise.enabled === true.
+  const pinkAllOn = state.outputs.length > 0 && state.outputs.every((o) => o.pinkNoise?.enabled);
+  // Master level slider mirrors first output's level (they're broadcast together).
+  const pinkLevel = state.outputs[0]?.pinkNoise?.level ?? -20;
 
   const onFile = async (e) => {
     const f = e.target.files?.[0];
@@ -129,6 +135,41 @@ const TopBar = ({ tab, setTab, onOpenPresets }) => {
           </button>
           <span className="text-[10px] font-mono text-neutral-500 truncate max-w-[180px]" data-testid="audio-file-name">
             {fileName || "no file"}
+          </span>
+        </div>
+
+        {/* Pink Noise (test signal generator — broadcasts to ALL output chain inputs) */}
+        <div className="flex items-center gap-2 px-4 border-r border-neutral-800">
+          <span className="text-[9px] font-mono uppercase tracking-[0.18em]" style={{ color: pinkAllOn ? "#FF7AC6" : "#666" }}>
+            Pink Noise
+          </span>
+          <button
+            onClick={() => setAllPinkNoise(!pinkAllOn, pinkLevel)}
+            data-testid="pn-master-toggle"
+            className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border font-bold transition-colors"
+            style={{
+              background: pinkAllOn ? "#FF7AC6" : "transparent",
+              color: pinkAllOn ? "#000" : "#888",
+              borderColor: pinkAllOn ? "#FF7AC6" : "#2A2A2A",
+            }}
+          >
+            {pinkAllOn ? "ALL ON" : "ALL OFF"}
+          </button>
+          <input
+            type="range"
+            min={-60}
+            max={0}
+            step={0.5}
+            value={pinkLevel}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setAllPinkNoise(pinkAllOn || undefined, v);
+            }}
+            className="w-20 accent-[#FF7AC6]"
+            data-testid="pn-master-level"
+          />
+          <span className="text-[10px] font-mono font-bold text-white w-12 text-right" data-testid="pn-master-level-value">
+            {pinkLevel.toFixed(1)} dB
           </span>
         </div>
 

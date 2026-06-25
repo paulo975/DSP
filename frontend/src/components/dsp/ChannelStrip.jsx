@@ -115,6 +115,19 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
         </Btn>
       </div>
 
+      {/* ----- Pink Noise toggle (test signal) ----- */}
+      <div className="px-2 pt-1">
+        <Btn
+          active={output.pinkNoise?.enabled}
+          color="#FF7AC6"
+          onClick={() => setDeep("pinkNoise.enabled", !output.pinkNoise?.enabled)}
+          testId={tid("pink-noise")}
+          full
+        >
+          {output.pinkNoise?.enabled ? `▮▮ PINK ${output.pinkNoise.level.toFixed(0)}` : "▮ PINK NOISE"}
+        </Btn>
+      </div>
+
       {/* ----- Crossover ----- */}
       <Section title="Crossover" accent={accentTone}>
         <div className="flex justify-around mb-2">

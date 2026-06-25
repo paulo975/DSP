@@ -91,6 +91,29 @@ const SelectedChannelPanel = ({ outputId, onOpenEq, onOpenComp, onClose }) => {
           <SmallToggle label="EQ ON" active={out.eq.enabled} onClick={() => setDeep("eq.enabled", !out.eq.enabled)} testId="sel-eq-enabled" />
           <SmallToggle label="COMP" active={out.comp.enabled} onClick={() => setDeep("comp.enabled", !out.comp.enabled)} testId="sel-comp-enabled" />
           <SmallToggle label="LIM" active={out.limiter.enabled} onClick={() => setDeep("limiter.enabled", !out.limiter.enabled)} testId="sel-lim-enabled" />
+          <div className="flex items-center gap-1.5 border-l border-neutral-800 pl-3 ml-1">
+            <SmallToggle
+              label={out.pinkNoise?.enabled ? "PINK ON" : "PINK"}
+              active={out.pinkNoise?.enabled}
+              color="#FF7AC6"
+              onClick={() => setDeep("pinkNoise.enabled", !out.pinkNoise?.enabled)}
+              testId="sel-pink-toggle"
+            />
+            <input
+              type="range"
+              min={-60}
+              max={0}
+              step={0.5}
+              value={out.pinkNoise?.level ?? -20}
+              onChange={(e) => setDeep("pinkNoise.level", Number(e.target.value))}
+              className="w-24 accent-[#FF7AC6]"
+              data-testid="sel-pink-level"
+              title="Pink noise level"
+            />
+            <span className="text-[10px] font-mono font-bold w-12 text-right" style={{ color: out.pinkNoise?.enabled ? "#FF7AC6" : "#666" }} data-testid="sel-pink-level-value">
+              {(out.pinkNoise?.level ?? -20).toFixed(1)} dB
+            </span>
+          </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
