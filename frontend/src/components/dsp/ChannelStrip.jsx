@@ -261,11 +261,10 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
             step={0.1}
             value={output.gain}
             onChange={(e) => setField({ gain: Number(e.target.value) })}
-            className="appearance-none bg-transparent accent-[#FF6B00] cursor-pointer"
+            className="appearance-none bg-transparent accent-[#FF6B00] cursor-pointer vertical-fader"
             style={{
               writingMode: "vertical-lr",
               direction: "rtl",
-              WebkitAppearance: "slider-vertical",
               height: 140,
               width: 22,
             }}
