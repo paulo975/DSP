@@ -1,0 +1,120 @@
+{
+  "identity": {
+    "theme": "Dark",
+    "archetype": "Archetype 2 (Performance Pro)",
+    "vibe": "Tactical Minimalism, Professional Audio Control Room",
+    "justification": "Audio engineering dashboards require high density, low eye strain (dark mode), and absolute precision. The Performance Pro archetype provides the sharp, high-contrast visual cues needed for active channels, clipping, and routing without decorative distraction."
+  },
+  "typography": {
+    "font_family_heading": "IBM Plex Sans, sans-serif",
+    "font_family_body": "IBM Plex Sans, sans-serif",
+    "font_family_mono": "JetBrains Mono, monospace",
+    "rules": [
+      "NEVER use Inter, Roboto, Open Sans, Lato, or Syne.",
+      "Use JetBrains Mono for ALL numeric readouts (dB, ms, Hz, Ratio) to ensure tabular lining.",
+      "Labels must be uppercase, tracking-[0.2em], text-xs."
+    ],
+    "scale": {
+      "h1": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h2": "text-xl sm:text-2xl font-semibold tracking-tight",
+      "body": "text-sm",
+      "label": "text-[10px] font-mono uppercase tracking-[0.2em] text-neutral-400",
+      "value": "text-xs font-mono font-bold text-white"
+    }
+  },
+  "color_system": {
+    "background": {
+      "base": "#0A0A0A",
+      "surface": "#121212",
+      "surface_elevated": "#1A1A1A",
+      "glass": "bg-black/60 backdrop-blur-xl"
+    },
+    "border": {
+      "default": "#2A2A2A",
+      "focus": "#404040",
+      "active": "#FF6B00"
+    },
+    "brand": {
+      "primary": "#FF6B00",
+      "primary_hover": "#FF8533",
+      "forbidden": ["#9D4CDD", "#1B93A4", "#7351B7"]
+    },
+    "status": {
+      "signal_safe": "#00FF41",
+      "signal_warning": "#FFB800",
+      "signal_clip": "#FF0000",
+      "mute": "#FF3B30",
+      "solo": "#FFD60A"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A0A0A0",
+      "muted": "#555555",
+      "inverted": "#000000"
+    }
+  },
+  "layout_and_spacing": {
+    "grid_protocol": "MODE B: THE 'CONTROL ROOM' GRID",
+    "spacing_scale": "Dense. Use p-2, p-4, gap-1, gap-2.",
+    "borders_and_radius": "Sharp edges. Use rounded-none or max rounded-sm (2px). 1px solid strokes for all containers.",
+    "structure": [
+      "Header: Slim, sticky top, contains version selector (16x16 / 8x8), Preset Management and I/O global status.",
+      "Main Canvas: Horizontal scrolling for Channel Strips layout, or dense Matrix Grid layout.",
+      "Channel Strip: Fixed width (e.g., w-28 or w-32), vertical flow (Input Name -> Crossover -> EQ -> Comp/Limiter -> Delay -> Pan -> Fader/Meter)."
+    ]
+  },
+  "components": {
+    "channel_strip": {
+      "type": "custom_html",
+      "rules": "Flex col, border-r border-border, h-full, dense internal spacing (p-2). Do NOT use Shadcn Card here to avoid padding bloat."
+    },
+    "fader": {
+      "type": "slider",
+      "rules": "Vertical orientation constraint. Track is dark gray, thumb is bright primary or white. Must update value instantaneously via Web Audio API or fast state."
+    },
+    "knobs_and_dials": {
+      "type": "custom_svg_or_slider",
+      "rules": "If true rotary knobs are too complex, use compact horizontal Shadcn sliders mapped accurately with mono-value readouts directly above them."
+    },
+    "meters": {
+      "type": "visualizer",
+      "rules": "Vertical segmented bar or linear gradient (Green -> Yellow -> Red). MUST include a distinct red 'CLIP' LED block at the very top."
+    },
+    "matrix_router": {
+      "type": "grid",
+      "rules": "Dense CSS Grid or Flex Matrix. 1rem to 1.5rem cell size. Interactive nodes toggle routing state. Empty = unrouted, Filled/Icon = routed. Style like Dante Controller."
+    },
+    "eq_graph": {
+      "type": "chart",
+      "rules": "Use Recharts (AreaChart or LineChart). Logarithmic X-axis representation for 20Hz to 20kHz. Clean line with minimal fill opacity."
+    },
+    "tabs": {
+      "type": "navigation",
+      "rules": "Square, dense, border-b only, active state has primary color bottom border of 2px. No pill shapes."
+    }
+  },
+  "motion_and_interactions": {
+    "philosophy": "Instantaneous. Audio engineers rely on immediate feedback. No floaty animations.",
+    "transitions": "Fast. 100ms ease-out for color changes. Faders and meters must be 0ms latency.",
+    "hover_states": "Text color inversion or bright border highlights."
+  },
+  "accessibility_and_testing": {
+    "contrast": "Ensure pure white text on deep obsidian background. APCA standards preferred.",
+    "testing": "CRITICAL: All interactive and key informational elements MUST include a data-testid attribute (e.g., data-testid='ch1-mute-btn', data-testid='eq-freq-slider')."
+  },
+  "media": {
+    "image_urls": [],
+    "notes": "No images used. Pro audio software relies purely on technical UI elements and data visualization."
+  },
+  "instructions_to_main_agent": [
+    "1. ARCHITECTURE: The app is a dense, horizontal-scrolling 'Control Room' dashboard. Ensure the main workspace has overflow-x-auto for 16-channel layouts.",
+    "2. AUDIO ENGINE: Implement Web Audio API (or robust mock state) for BiquadFilter, DynamicsCompressor, DelayNode, and PannerNode. Handle audio file upload/playback routing through this chain.",
+    "3. DELAY BUG FIX: The core requested fix is the channel delay. Ensure the 'Delay' parameter operates reliably, saves to state instantly without latency, and converts correctly between ms, mm, and inches (ms = distance / 343).",
+    "4. PRESETS: Implement robust JSON serialization of the full matrix/channel state to localStorage.",
+    "5. ROUTING: The Matrix Router must map physical/virtual inputs to physical/virtual outputs in an N x N grid.",
+    "6. UI EXECUTION: Rely on native HTML/Tailwind for the heavy layouts (channel strips, matrix) to keep the DOM light. Use Shadcn ONLY for generic inputs, selects, or complex modals.",
+    "7. AESTHETICS: Stick rigidly to the Performance Pro tactical archetype. No soft shadows, no glassmorphism in the main work area (only for floating modals). 1px crisp borders.",
+    "8. VERSIONS: Build a toggle or landing choice for 16x16 vs 8x8 physical/virtual channel configurations.",
+    "9. TESTING: Embed data-testid on every single knob, slider, mute, solo, and routing button."
+  ]
+}
