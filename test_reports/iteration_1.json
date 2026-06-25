@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend smoke test of AudioSystem DSP web app. All 14 critical UI flows passed: app shell load, 16+16 default layout, version switch to 8+8 via confirmation modal, delay value+unit (mm conversion verified: 343mm -> 1.00 ms), mute/fader/gain, EQ 5-band modal with band gain update, Compressor modal toggle, Routing Matrix tab with default cells and click-to-route, Preset save+visible, master mute, and critically the localStorage PERSISTENCE — delay value 7.7 ms set, page reloaded, value restored. The core bug fix ('doesn't save channel delays') is verified resolved.",
+  "tested_scope": ["frontend", "integration"],
+  "passed": [
+    "dsp-shell renders at root",
+    "Default 16 physical + 16 virtual channel strips present",
+    "Delay value input updates ms readout (12.5 ms displayed)",
+    "Delay unit conversion mm->ms correct (343mm = 1.00 ms, 343 m/s)",
+    "Mute button clickable",
+    "Fader updates gain readout (-6.0 dB)",
+    "Version switch 16+16 -> 8+8 via confirmation modal works (8 phy + 8 virt)",
+    "EQ modal opens with 5 bands; band gain slider updates readout (3.0 dB)",
+    "Compressor modal opens; comp-enabled toggle and threshold slider work; close works",
+    "Routing Matrix tab loads with default IN1->OUT1 cell; cells are clickable",
+    "Preset Manager: save with name 'TestPreset1' appears in list",
+    "Master mute clickable",
+    "CRITICAL: localStorage persistence — delay 7.7 ms survives page reload"
+  ],
+  "failed": [],
+  "action_items": [
+    "Minor (non-blocking): Many CSS 'slider-vertical' appearance warnings — deprecated keyword, suggest migrating to writing-mode for future-proofing",
+    "Minor (non-blocking): Recharts warning 'width(-1) height(-1)' inside EQ modal on first paint — chart container size resolves on second paint; consider explicit min dims",
+    "AudioContext autoplay warning is expected (requires user gesture); engine resumes on interaction per design"
+  ],
+  "success_rate": {"backend": "not tested (per request)", "frontend": "100% (14/14)"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}
