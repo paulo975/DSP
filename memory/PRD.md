@@ -26,8 +26,10 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
-## What's Been Implemented (2026-01-25 — MVP)
+## What's Been Implemented (2026-01-25 — MVP + ChannelStrip Redesign v2)
 - ✅ Two-version DSP shell (16+16 / 8+8 Dante) with confirmation modal on switch.
+- ✅ Redesigned channel strips with **horizontal input meter** (pre-DSP, post-routing) below header, **larger vertical output meter** (20 LED segments) beside fader, clearer Section headers (Crossover / Processing / Delay / Pan / OUT), **full-width MUTE/SOLO buttons** in 2-col grid, and **EQ / DYNAMICS buttons** that turn amber when active.
+- ✅ Audio engine: new `inputAnalyser` per output chain + `getInputLevel()` API for pre-DSP metering.
 - ✅ 32 (or 16) channel strips with full Crossover, EQ access, Comp access, Delay (ms/mm/inch with live ms-equivalent readout), Pan, Fader, Mute, Solo, Meter, Reset.
 - ✅ EQ modal: 5-band parametric (lowshelf / 3×peaking / highshelf) with live curve preview (Recharts log-X 20 Hz–20 kHz), bypass toggle.
 - ✅ Dynamics modal: Compressor (threshold, ratio, attack, release, knee, makeup) + Limiter (ceiling).
@@ -43,6 +45,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 
 ## Testing Status
 - **Iteration 1 (2026-01-25)**: 14/14 frontend flows passed including the critical localStorage persistence test (delay value 7.7 ms set, page reloaded, value restored). Report: `/app/test_reports/iteration_1.json`.
+- **Iteration 2 (2026-01-25)**: 15/15 passed after channel-strip redesign — new input meter + larger output meter validated, no regressions on legacy testids, persistence intact. Report: `/app/test_reports/iteration_2.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)

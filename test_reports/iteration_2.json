@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 2 regression + new meter feature smoke - 15/15 passed. New input-meter and bigger output-meter testids present. All existing channel-strip testids preserved. Mute/Solo/EQ/Dynamics/Delay all work. localStorage persistence verified (delay 9.3 survived reload). Preset save works. Zero console errors.",
+  "tested_scope": ["frontend", "integration"],
+  "passed": [
+    "dsp-shell renders",
+    "16 PHY + 16 VIRT strips",
+    "NEW out-out_phy-0-input-meter present",
+    "NEW out-out_phy-0-meter (output) present",
+    "All 14 legacy testids still present",
+    "Mute click toggles label to MUTE",
+    "Solo click works",
+    "EQ button label 'EQ · 5 BANDS' + modal opens",
+    "Dynamics button label 'DYNAMICS' + comp-modal opens",
+    "Delay 12.5 -> ~12.50 ms readout",
+    "Persistence: delay 9.3 survives reload",
+    "Routing Matrix tab switches",
+    "Preset 'MeterRegressionTest' saved and visible",
+    "Zero console errors"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "not tested (per request)", "frontend": "100% (15/15)"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

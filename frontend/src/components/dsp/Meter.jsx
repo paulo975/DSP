@@ -2,12 +2,19 @@ import React, { useEffect, useRef, useState } from "react";
 import { audioEngine } from "@/lib/audioEngine";
 
 /**
- * Segmented vertical level meter for a given output channel.
- * Polls the analyser at ~30fps for low CPU usage.
+ * Segmented level meter (vertical or horizontal) reading from the audio engine.
+ * - source: "in" | "out" — which analyser to read
+ * - orient: "v" | "h"
  */
-const SEGMENTS = 16;
-
-const Meter = ({ outputId, testId, height = 120 }) => {
+const Meter = ({
+  outputId,
+  source = "out",
+  orient = "v",
+  segments = 16,
+  height = 120,
+  width = 12,
+  testId,
+}) => {
   const [level, setLevel] = useState(0);
   const [peak, setPeak] = useState(0);
   const rafRef = useRef(null);
@@ -19,7 +26,10 @@ const Meter = ({ outputId, testId, height = 120 }) => {
     const tick = (t) => {
       if (t - last > 33) {
         last = t;
-        const v = audioEngine.getOutputLevel(outputId);
+        const v =
+          source === "in"
+            ? audioEngine.getInputLevel(outputId)
+            : audioEngine.getOutputLevel(outputId);
         setLevel(v);
         if (v > peakRef.current) {
           peakRef.current = v;
@@ -33,24 +43,25 @@ const Meter = ({ outputId, testId, height = 120 }) => {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [outputId]);
+  }, [outputId, source]);
 
-  const litCount = Math.round(level * SEGMENTS);
-  const peakIdx = Math.round(peak * SEGMENTS);
+  const litCount = Math.round(level * segments);
+  const peakIdx = Math.round(peak * segments);
+  const flexDir = orient === "v" ? "flex-col-reverse" : "flex-row";
 
   return (
     <div
-      className="flex flex-col-reverse gap-[2px] w-3 bg-black border border-neutral-800 p-[2px]"
-      style={{ height }}
+      className={`flex ${flexDir} gap-[2px] bg-black border border-neutral-800 p-[2px]`}
+      style={orient === "v" ? { height, width } : { width, height }}
       data-testid={testId}
     >
-      {Array.from({ length: SEGMENTS }).map((_, i) => {
+      {Array.from({ length: segments }).map((_, i) => {
         const isLit = i < litCount;
         const isPeak = i === peakIdx - 1 && peakIdx > litCount;
         const color =
-          i >= SEGMENTS - 2
+          i >= segments - 2
             ? "#FF0000"
-            : i >= SEGMENTS - 5
+            : i >= segments - 5
               ? "#FFB800"
               : "#00FF41";
         return (
@@ -59,7 +70,7 @@ const Meter = ({ outputId, testId, height = 120 }) => {
             className="flex-1 rounded-[1px]"
             style={{
               background: isLit || isPeak ? color : "#1a1a1a",
-              opacity: isLit ? 1 : isPeak ? 0.7 : 0.35,
+              opacity: isLit ? 1 : isPeak ? 0.7 : 0.3,
               boxShadow: isLit ? `0 0 4px ${color}` : "none",
               transition: "background 30ms linear",
             }}

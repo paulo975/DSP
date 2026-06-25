@@ -76,6 +76,11 @@ class AudioEngine {
 
   createOutputChain(ctx, out) {
     const input = ctx.createGain();
+    const inputAnalyser = ctx.createAnalyser();
+    inputAnalyser.fftSize = 256;
+    inputAnalyser.smoothingTimeConstant = 0.6;
+    input.connect(inputAnalyser);
+
     const hpf = ctx.createBiquadFilter();
     hpf.type = "highpass";
     hpf.frequency.value = out.crossover.hpf.freq;
@@ -129,6 +134,7 @@ class AudioEngine {
 
     return {
       input,
+      inputAnalyser,
       hpf,
       lpf,
       eqs,
@@ -148,7 +154,7 @@ class AudioEngine {
       Object.values(this.outputRouteGains).forEach((g) => g.disconnect());
       Object.values(this.inputBuses).forEach((g) => g.disconnect());
       Object.values(this.outputChains).forEach((c) => {
-        [c.input, c.hpf, c.lpf, ...c.eqs, c.comp, c.makeup, c.delay, c.gainL, c.gainR, c.analyser].forEach((n) => {
+        [c.input, c.inputAnalyser, c.hpf, c.lpf, ...c.eqs, c.comp, c.makeup, c.delay, c.gainL, c.gainR, c.analyser].forEach((n) => {
           try {
             n.disconnect();
           } catch (e) { /* noop */ }
@@ -358,6 +364,16 @@ class AudioEngine {
   // Return RMS-like level (0..1) for an output channel using its analyser.
   getOutputLevel(outId) {
     const a = this.analysers[outId];
+    return this._readAnalyser(a);
+  }
+
+  // Return RMS-like level (0..1) at the input of the chain (pre-DSP, post-routing).
+  getInputLevel(outId) {
+    const chain = this.outputChains[outId];
+    return this._readAnalyser(chain?.inputAnalyser);
+  }
+
+  _readAnalyser(a) {
     if (!a) return 0;
     const buf = new Uint8Array(a.fftSize);
     a.getByteTimeDomainData(buf);
@@ -367,7 +383,7 @@ class AudioEngine {
       sum += v * v;
     }
     const rms = Math.sqrt(sum / buf.length);
-    return Math.min(1, rms * 3); // scale a bit for visibility
+    return Math.min(1, rms * 3);
   }
 }
 

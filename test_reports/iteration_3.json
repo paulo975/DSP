@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 3 frontend testing — Yamaha-style SelectedChannelPanel + ChannelPills + InlineEqGraph + CompCurve. All 14 critical flows PASSED end-to-end (panel render, pill selection, bank tabs PHY/VIRT, 5 colored band markers + readouts, band freq/gain/q inputs propagate to readout, MUTE/SOLO/EQ/COMP/LIM toggles, delay+unit+pan+HPF/LPF, fader→gain readout, EQ & Comp modal open/close, sel-reset, sel-close, regression: clicking channel strip header selects channel, regression: Routing Matrix tab, regression: localStorage persistence of delay 7.7 ms across reload while selection NOT persisted, regression: version switch confirm dialog appears).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SelectedChannelPanel master fader", "issues": ["Vertical range slider uses deprecated CSS 'appearance: slider-vertical' — produces console warnings on Chromium. Consider migrating to writing-mode-only approach per Chromium message. Cosmetic, no functional impact."]},
+      {"screen": "Console warnings", "issues": ["Some Recharts container in PresetManager(?) emits 'width(-1) height(-1)' warning when comp-modal opens. Non-blocking but indicates a chart rendering in a zero-size container at some point."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_3.json"],
+  "action_items": [
+    "(Optional, cosmetic) Replace deprecated `WebkitAppearance: 'slider-vertical'` on sel-fader with the standard `writing-mode: vertical-lr; direction: rtl` approach already partially in style to silence Chromium warnings.",
+    "(Optional) Investigate Recharts width/height(-1) console warning that fires when a modal opens — likely a chart inside a hidden/zero-size container."
+  ],
+  "critical_code_review_comments": [
+    "SelectedChannelPanel.jsx uses JSON.parse(JSON.stringify(o)) for deep clone on every band/field update — fine for current data size but could be inefficient for larger states; consider structuredClone or targeted immer-style updates.",
+    "InlineEqGraph drag handlers use both setDraggingIdx state and draggingRef.current — minor duplication but functionally correct.",
+    "Selection state is intentionally NOT persisted (per spec) — verified via reload: panel disappears, but state.outputs (delay 7.7 ms) is restored from localStorage on re-selection. ✅",
+    "ChannelPills correctly renders only the active bank's pills, hiding the other bank's pills entirely (verified count 0 for hidden bank).",
+    "Channel strip header onClick wires through props.onSelect — works from both pill click and strip header click."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (14/14 tested flows passed)"},
+  "test_credentials": "n/a — no auth in this app",
+  "seed_data_creation": "None — used default DSP state from dspStore",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Modal close test-ids are `eq-close` and `comp-close` (NOT eq-modal-close / comp-modal-close). Version switch test-ids are `version-v16` and `version-v8` and clicking opens a confirmation dialog (Cancel / Switch) before the bank actually changes. Tab test-ids are `tab-channels`, `tab-matrix`. EQ band marker drag is pointer-event driven — the band freq/gain inputs (sel-band-N-freq/gain/q) are the reliable test entry point and they update eq-band-readout-N. The fader is a vertical range slider; programmatic value-setting from Playwright must use the native HTMLInputElement value setter + dispatch 'input'+'change' events for React to pick up the change.",
+  "rca of the issue": "No application bugs found. Two transient false failures in the first test pass were entirely test-script issues: (1) used wrong modal close test-ids (eq-modal-close/comp-modal-close instead of eq-close/comp-close) causing comp-modal to stay open and intercept clicks for all subsequent tests; (2) fader value set without using React's native HTMLInputElement.value setter, so onChange did not fire. Re-ran with correct selectors and proper event dispatch — all 8 affected flows passed."
+}
