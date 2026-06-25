@@ -2,6 +2,20 @@ import React, { useMemo } from "react";
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, ReferenceLine, CartesianGrid, Tooltip } from "recharts";
 import { useDsp } from "@/lib/dspStore";
 
+// Module-level constants — stable references, safe to use as Recharts props
+// without per-render allocation.
+const CHART_MARGIN = { top: 10, right: 20, left: 0, bottom: 10 };
+const X_DOMAIN = [20, 20000];
+const X_TICKS = [20, 100, 1000, 10000, 20000];
+const Y_DOMAIN = [-24, 18];
+const Y_TICKS = [-24, -12, 0, 12];
+const MONO_TICK = { fontFamily: "JetBrains Mono, monospace" };
+const TOOLTIP_STYLE = { background: "#0a0a0a", border: "1px solid #2A2A2A", fontFamily: "JetBrains Mono" };
+const formatXTick = (v) => (v >= 1000 ? `${v / 1000}k` : v);
+const formatYTick = (v) => `${v}`;
+const formatTooltipLabel = (v) => `${Math.round(v)} Hz`;
+const formatTooltipValue = (v) => [`${v.toFixed(1)} dB`, "Gain"];
+
 // Biquad gain magnitude approximation per band (simplified peaking / shelving response)
 const bandGainAt = (band, f) => {
   const ratio = f / band.freq;
@@ -89,31 +103,31 @@ const EqEditor = ({ outputId, onClose }) => {
         <div className="p-4">
           <div className="h-72 bg-black border border-neutral-900 p-2" data-testid="eq-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={curve} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+              <LineChart data={curve} margin={CHART_MARGIN}>
                 <CartesianGrid stroke="#1f1f1f" strokeDasharray="2 4" />
                 <XAxis
                   dataKey="freq"
                   scale="log"
-                  domain={[20, 20000]}
-                  ticks={[20, 100, 1000, 10000, 20000]}
+                  domain={X_DOMAIN}
+                  ticks={X_TICKS}
                   type="number"
-                  tickFormatter={(v) => (v >= 1000 ? `${v / 1000}k` : v)}
+                  tickFormatter={formatXTick}
                   stroke="#666"
                   fontSize={10}
-                  tick={{ fontFamily: "JetBrains Mono, monospace" }}
+                  tick={MONO_TICK}
                 />
                 <YAxis
-                  domain={[-24, 18]}
-                  ticks={[-24, -12, 0, 12]}
+                  domain={Y_DOMAIN}
+                  ticks={Y_TICKS}
                   stroke="#666"
                   fontSize={10}
-                  tick={{ fontFamily: "JetBrains Mono, monospace" }}
-                  tickFormatter={(v) => `${v}`}
+                  tick={MONO_TICK}
+                  tickFormatter={formatYTick}
                 />
                 <Tooltip
-                  contentStyle={{ background: "#0a0a0a", border: "1px solid #2A2A2A", fontFamily: "JetBrains Mono" }}
-                  labelFormatter={(v) => `${Math.round(v)} Hz`}
-                  formatter={(v) => [`${v.toFixed(1)} dB`, "Gain"]}
+                  contentStyle={TOOLTIP_STYLE}
+                  labelFormatter={formatTooltipLabel}
+                  formatter={formatTooltipValue}
                 />
                 <ReferenceLine y={0} stroke="#444" />
                 <Line type="monotone" dataKey="gain" stroke="#FF6B00" strokeWidth={2} dot={false} isAnimationActive={false} />

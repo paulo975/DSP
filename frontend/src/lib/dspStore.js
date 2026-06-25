@@ -16,7 +16,8 @@ const loadFromStorage = () => {
     const parsed = JSON.parse(raw);
     if (!parsed?.version || !VERSIONS[parsed.version]) return null;
     return parsed;
-  } catch (e) {
+  } catch (err) {
+    console.warn("[dspStore] Failed to load state from localStorage:", err);
     return null;
   }
 };
@@ -87,7 +88,9 @@ export const DspProvider = ({ children }) => {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) { /* noop */ }
+    } catch (err) {
+      console.warn("[dspStore] Failed to persist state to localStorage:", err);
+    }
   }, [state]);
 
   // (Re)build audio graph only when version changes or first mount
@@ -144,7 +147,8 @@ export const listPresets = () => {
   try {
     const raw = localStorage.getItem(PRESETS_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch (e) {
+  } catch (err) {
+    console.warn("[dspStore] Failed to load presets from localStorage:", err);
     return [];
   }
 };
