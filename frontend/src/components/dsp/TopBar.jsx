@@ -50,6 +50,7 @@ const TopBar = ({ tab, setTab, onOpenPresets }) => {
 
   const tabs = [
     { id: "channels", label: "Channels" },
+    { id: "meters", label: "Meters" },
     { id: "matrix", label: "Routing Matrix" },
   ];
 

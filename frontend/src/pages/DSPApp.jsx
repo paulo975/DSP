@@ -3,6 +3,7 @@ import { DspProvider, useDsp } from "@/lib/dspStore";
 import TopBar from "@/components/dsp/TopBar";
 import ChannelStrip from "@/components/dsp/ChannelStrip";
 import MatrixRouter from "@/components/dsp/MatrixRouter";
+import MetersView from "@/components/dsp/MetersView";
 import EqEditor from "@/components/dsp/EqEditor";
 import CompEditor from "@/components/dsp/CompEditor";
 import PresetManager from "@/components/dsp/PresetManager";
@@ -97,6 +98,7 @@ const DSPShell = () => {
             setBank={setBank}
           />
         )}
+        {tab === "meters" && <MetersView />}
         {tab === "matrix" && <MatrixRouter />}
       </main>
       <footer className="border-t border-neutral-800 px-4 py-1.5 flex justify-between items-center bg-black">

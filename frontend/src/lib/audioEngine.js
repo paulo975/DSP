@@ -12,6 +12,7 @@ class AudioEngine {
     this.splitter = null;
     this.testToneNodes = {}; // inputId -> { osc, gain }
     this.inputBuses = {}; // inputId -> GainNode (summed signal feeding into matrix)
+    this.inputBusAnalysers = {}; // inputId -> AnalyserNode (input bus meter)
     this.outputChains = {}; // outputId -> { input, hpf, lpf, eqs[], comp, makeup, delay, panL, panR, gainL, gainR, analyser }
     this.outputRouteGains = {}; // `${inputId}->${outputId}` -> GainNode
     this.analysers = {}; // outputId -> AnalyserNode
@@ -62,11 +63,16 @@ class AudioEngine {
     this.teardownGraph();
     const ctx = this.ensureContext();
 
-    // 1. Create per-input bus.
+    // 1. Create per-input bus + analyser (for input-side meters).
     [...state.inputs].forEach((inp) => {
       const bus = ctx.createGain();
       bus.gain.value = 1;
+      const a = ctx.createAnalyser();
+      a.fftSize = 256;
+      a.smoothingTimeConstant = 0.6;
+      bus.connect(a);
       this.inputBuses[inp.id] = bus;
+      this.inputBusAnalysers[inp.id] = a;
     });
 
     // 2. Create per-output processing chain.
@@ -195,6 +201,9 @@ class AudioEngine {
     try {
       Object.values(this.outputRouteGains).forEach((g) => g.disconnect());
       Object.values(this.inputBuses).forEach((g) => g.disconnect());
+      Object.values(this.inputBusAnalysers).forEach((a) => {
+        try { a.disconnect(); } catch (e) { /* noop */ }
+      });
       Object.values(this.outputChains).forEach((c) => {
         try { c.pinkSrc.stop(); } catch (e) { /* expected when source already stopped */ }
         [c.input, c.inputAnalyser, c.pinkSrc, c.pinkGain, c.hpf, c.lpf, ...c.eqs, c.comp, c.makeup, c.delay, c.gainL, c.gainR, c.analyser].forEach((n) => {
@@ -206,6 +215,7 @@ class AudioEngine {
     } catch (e) { /* noop */ }
     this.outputRouteGains = {};
     this.inputBuses = {};
+    this.inputBusAnalysers = {};
     this.outputChains = {};
     this.analysers = {};
     this.stopFile();
@@ -422,6 +432,11 @@ class AudioEngine {
   getInputLevel(outId) {
     const chain = this.outputChains[outId];
     return this._readAnalyser(chain?.inputAnalyser);
+  }
+
+  // Return RMS-like level (0..1) of the raw input bus (post-summing, pre-routing).
+  getInputBusLevel(inputId) {
+    return this._readAnalyser(this.inputBusAnalysers[inputId]);
   }
 
   _readAnalyser(a) {

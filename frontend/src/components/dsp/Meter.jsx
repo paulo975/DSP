@@ -29,7 +29,9 @@ const Meter = ({
         const v =
           source === "in"
             ? audioEngine.getInputLevel(outputId)
-            : audioEngine.getOutputLevel(outputId);
+            : source === "inputBus"
+              ? audioEngine.getInputBusLevel(outputId)
+              : audioEngine.getOutputLevel(outputId);
         setLevel(v);
         if (v > peakRef.current) {
           peakRef.current = v;
