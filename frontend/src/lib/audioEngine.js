@@ -440,6 +440,18 @@ class AudioEngine {
     return this._readAnalyser(this.inputBusAnalysers[inputId]);
   }
 
+  // Return current compressor gain reduction in dB (≤ 0, where 0 = no reduction).
+  // The DynamicsCompressor node exposes `.reduction` as a Number on modern browsers
+  // (was an AudioParam in older specs — handle both).
+  getCompReduction(outputId) {
+    const chain = this.outputChains[outputId];
+    if (!chain || !chain.comp) return 0;
+    const r = chain.comp.reduction;
+    if (typeof r === "number") return r;
+    if (r && typeof r.value === "number") return r.value;
+    return 0;
+  }
+
   // Peak registry — meters write their held peak here each tick so the
   // Snapshot feature can read a coherent picture across all channels.
   recordPeak(channelId, peak, peakDb) {

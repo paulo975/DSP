@@ -3,6 +3,7 @@ import { useDsp } from "@/lib/dspStore";
 import { formatDelay } from "@/lib/dspDefaults";
 import InlineEqGraph, { BAND_COLORS } from "./InlineEqGraph";
 import CompCurve from "./CompCurve";
+import GRMeter from "./GRMeter";
 import Meter from "./Meter";
 
 const Pill = ({ label, value, suffix, testId }) => (
@@ -251,8 +252,8 @@ const SelectedChannelPanel = ({ outputId, onOpenEq, onOpenComp, onClose }) => {
           </div>
         </div>
 
-        {/* Column 2: Dynamics (DYN1=COMP visualization) */}
-        <div className="w-[200px]">
+        {/* Column 2: Dynamics (DYN1=COMP visualization) + live GR meter */}
+        <div className="w-[260px]">
           <div className="flex items-center justify-between mb-1 px-1">
             <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-500">DYN · Comp/Lim</span>
             <button onClick={() => onOpenComp(out.id)}
@@ -261,7 +262,17 @@ const SelectedChannelPanel = ({ outputId, onOpenEq, onOpenComp, onClose }) => {
               Open Modal ↗
             </button>
           </div>
-          <CompCurve comp={out.comp} limiter={out.limiter} width={200} height={200} />
+          <div className="flex gap-2 items-start">
+            <CompCurve comp={out.comp} limiter={out.limiter} width={200} height={200} />
+            <GRMeter
+              outputId={out.id}
+              enabled={out.comp.enabled || out.limiter.enabled}
+              height={200}
+              width={20}
+              segments={24}
+              testId="sel-gr-meter"
+            />
+          </div>
           <div className="grid grid-cols-2 gap-1 mt-1">
             <Pill label="Thr" value={out.comp.threshold.toFixed(1)} suffix="dB" testId="sel-pill-thr" />
             <Pill label="Ratio" value={`${out.comp.ratio.toFixed(1)}:1`} testId="sel-pill-ratio" />
