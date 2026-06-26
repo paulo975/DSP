@@ -4,7 +4,7 @@ import { audioEngine } from "@/lib/audioEngine";
 
 const SNAPSHOT_KEY = "dsp_snapshots_v1";
 
-const loadSnapshots = () => {
+export const loadSnapshots = () => {
   try {
     const raw = localStorage.getItem(SNAPSHOT_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -14,7 +14,7 @@ const loadSnapshots = () => {
   }
 };
 
-const saveSnapshotsList = (list) => {
+export const saveSnapshotsList = (list) => {
   try {
     localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(list));
   } catch (err) {
@@ -27,7 +27,7 @@ const kindLabel = (k) =>
 
 const formatDb = (db) => (db <= -60 ? "−∞" : `${db.toFixed(1)}`);
 
-const captureCurrentSnapshot = (inputs, outputs) => {
+export const captureCurrentSnapshot = (inputs, outputs) => {
   const rows = [];
   [...inputs, ...outputs].forEach((c) => {
     const entry = audioEngine.getPeak(c.id);

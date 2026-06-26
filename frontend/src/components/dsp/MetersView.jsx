@@ -113,6 +113,7 @@ const MetersView = () => {
   const { state } = useDsp();
   const [snapshotOpen, setSnapshotOpen] = React.useState(false);
   const [autoCaptureOpen, setAutoCaptureOpen] = React.useState(false);
+  const [oneClickOpen, setOneClickOpen] = React.useState(false);
 
   const inPhy = state.inputs.filter((i) => i.kind === "in_phy");
   const inVirt = state.inputs.filter((i) => i.kind === "in_virt");
@@ -142,6 +143,14 @@ const MetersView = () => {
             <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FFB800" }} /> headroom</div>
             <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FF0000" }} /> clip</div>
           </div>
+          <button
+            onClick={() => setOneClickOpen(true)}
+            data-testid="open-one-click"
+            title="Full calibration in ~30s: sweep all outputs, level-match to average, save snapshot, export CSV"
+            className="px-3 py-1.5 bg-[#FFD60A] text-black text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#FFE140] transition-colors"
+          >
+            ⚡ One-Click Calibration
+          </button>
           <button
             onClick={() => setAutoCaptureOpen(true)}
             data-testid="open-auto-capture"
@@ -195,6 +204,7 @@ const MetersView = () => {
 
       {snapshotOpen && <SnapshotPanel onClose={() => setSnapshotOpen(false)} />}
       {autoCaptureOpen && <AutoCaptureSequence onClose={() => setAutoCaptureOpen(false)} />}
+      {oneClickOpen && <AutoCaptureSequence onClose={() => setOneClickOpen(false)} oneClick />}
     </div>
   );
 };

@@ -10,6 +10,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useDsp } from "@/lib/dspStore";
 import { audioEngine } from "@/lib/audioEngine";
+import { captureCurrentSnapshot, loadSnapshots, saveSnapshotsList } from "./SnapshotPanel";
 
 const SCOPE_OPTIONS = [
   { id: "phy", label: "Physical Only" },
@@ -53,16 +54,20 @@ const computeCorrection = (row, refDb) => {
 
 const clampGain = (g) => Math.max(-60, Math.min(12, g));
 
-const AutoCaptureSequence = ({ onClose }) => {
+const AutoCaptureSequence = ({ onClose, oneClick = false }) => {
   const { state, updateOutput, updateOutputDeep, readOnly } = useDsp();
+  // In One-Click mode we override defaults with the "sensible installer" preset
+  // and auto-fire Start → Apply Match → Snapshot → CSV. The user just watches.
   const [scope, setScope] = useState("phy");
-  const [levelDb, setLevelDb] = useState(-18);
-  const [dwellMs, setDwellMs] = useState(1500);
-  const [settleMs, setSettleMs] = useState(300);
-  const [matchMode, setMatchMode] = useState("avg"); // 'avg' | 'target' — Auto Level Match reference
-  const [appliedUndo, setAppliedUndo] = useState(null); // { changes: [{id, oldGain}], appliedAt } — enables Undo
+  const [levelDb, setLevelDb] = useState(oneClick ? -18 : -18);
+  const [dwellMs, setDwellMs] = useState(oneClick ? 1500 : 1500);
+  const [settleMs, setSettleMs] = useState(oneClick ? 300 : 300);
+  const [matchMode, setMatchMode] = useState("avg");
+  const [appliedUndo, setAppliedUndo] = useState(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ idx: 0, total: 0, currentName: "" });
+  // One-Click pipeline phase: 'idle' | 'sweep' | 'matching' | 'snapshotting' | 'done' | 'cancelled'
+  const [ocPhase, setOcPhase] = useState("idle");
   const [results, setResults] = useState([]); // [{idx, id, name, kind, peakDb, targetDb}]
   const [error, setError] = useState(null);
   const cancelRef = useRef(false);
@@ -162,6 +167,8 @@ const AutoCaptureSequence = ({ onClose }) => {
 
     setRunning(false);
     setProgress({ idx: 0, total: 0, currentName: "" });
+    // Tell the One-Click orchestrator whether the sweep finished cleanly.
+    return { cancelled: cancelRef.current, count: collected.length };
   };
 
   const cancel = () => { cancelRef.current = true; };
@@ -187,7 +194,7 @@ const AutoCaptureSequence = ({ onClose }) => {
     : results.reduce((n, r) => n + (computeCorrection(r, refDb) !== 0 ? 1 : 0), 0);
 
   const applyLevelMatch = () => {
-    if (readOnly || avg == null) return;
+    if (readOnly || avg == null) return { applied: 0 };
     const changes = [];
     results.forEach((r) => {
       const correction = computeCorrection(r, refDb);
@@ -201,10 +208,11 @@ const AutoCaptureSequence = ({ onClose }) => {
     });
     if (changes.length === 0) {
       setError("All channels already within the dead-band — nothing to adjust.");
-      return;
+      return { applied: 0 };
     }
     setError(null);
     setAppliedUndo({ changes, appliedAt: new Date().toISOString() });
+    return { applied: changes.length };
   };
 
   const undoLevelMatch = () => {
@@ -213,24 +221,109 @@ const AutoCaptureSequence = ({ onClose }) => {
     setAppliedUndo(null);
   };
 
+  // One-Click Calibration orchestrator: sweep → level-match → snapshot → CSV
+  // Sequentially chains existing helpers so the integrator gets a complete
+  // calibration in ~30 seconds with a single button press.
+  const [ocSummary, setOcSummary] = useState(null); // { swept, matched, snapshot, csv }
+  const startedOneClickRef = useRef(false);
+
+  const runOneClickPipeline = async () => {
+    if (startedOneClickRef.current) return;
+    startedOneClickRef.current = true;
+    setOcSummary(null);
+    setOcPhase("sweep");
+
+    // 1. Sweep
+    const sweepRes = await start();
+    if (sweepRes?.cancelled) { setOcPhase("cancelled"); return; }
+
+    // 2. Auto Level Match (AVG mode)
+    setOcPhase("matching");
+    await sleep(150); // let React flush results state before computing corrections
+    const matchRes = applyLevelMatch();
+
+    // 3. Snapshot to the saved-snapshots store
+    setOcPhase("snapshotting");
+    await sleep(120);
+    const snapName = `One-Click ${new Date().toLocaleString()}`;
+    const rows = captureCurrentSnapshot(state.inputs, state.outputs);
+    const snap = {
+      id: `one-click-${Date.now()}`,
+      name: snapName,
+      takenAt: new Date().toISOString(),
+      rows,
+    };
+    const list = loadSnapshots();
+    saveSnapshotsList([snap, ...list]);
+
+    // 4. CSV
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const csvName = `one-click-calibration-${ts}.csv`;
+    downloadCsv(csvName, results.length ? results : []);
+
+    setOcSummary({
+      swept: sweepRes?.count ?? 0,
+      matched: matchRes?.applied ?? 0,
+      snapshot: snapName,
+      csv: csvName,
+    });
+    setOcPhase("done");
+  };
+
+  // Auto-fire the One-Click pipeline once on mount when the modal is opened in
+  // oneClick mode. Guarded by startedOneClickRef so a re-render doesn't restart.
+  useEffect(() => {
+    if (!oneClick) return;
+    const t = setTimeout(() => { runOneClickPipeline(); }, 200);
+    return () => clearTimeout(t);
+  }, [oneClick]);
+
   return (
     <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6" data-testid="auto-capture-modal">
       <div className="bg-[#0a0a0a] border border-neutral-800 w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
           <div>
-            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#00B7FF]">Auto-Capture Sequence</div>
-            <div className="text-lg font-semibold text-white">Sweep · Measure · Export</div>
+            <div
+              className="text-[10px] font-mono uppercase tracking-[0.2em]"
+              style={{ color: oneClick ? "#FFD60A" : "#00B7FF" }}
+            >
+              {oneClick ? "⚡ One-Click Calibration" : "Auto-Capture Sequence"}
+            </div>
+            <div className="text-lg font-semibold text-white">
+              {oneClick ? "Sweep → Match → Snapshot → CSV" : "Sweep · Measure · Export"}
+            </div>
           </div>
           <button
             onClick={onClose}
-            disabled={running}
+            disabled={running || ocPhase === "matching" || ocPhase === "snapshotting"}
             data-testid="ac-close"
             className="text-neutral-400 hover:text-white text-2xl px-2 disabled:opacity-30 disabled:cursor-not-allowed"
           >
             ×
           </button>
         </div>
+
+        {/* One-Click pipeline status banner */}
+        {oneClick && (
+          <div
+            className="px-4 py-2 border-b border-neutral-800 text-[10px] font-mono uppercase tracking-[0.18em] flex items-center justify-between"
+            style={{
+              background: ocPhase === "done" ? "rgba(255,214,10,0.08)" : "rgba(0,183,255,0.06)",
+            }}
+            data-testid="oc-phase-banner"
+          >
+            <span className="text-neutral-400">
+              {ocPhase === "idle" && "Starting…"}
+              {ocPhase === "sweep" && <span style={{ color: "#00B7FF" }}>▮ Step 1/4 · Sweeping channels with pink noise</span>}
+              {ocPhase === "matching" && <span style={{ color: "#FFD60A" }}>▮▮ Step 2/4 · Applying Level Match (AVG)</span>}
+              {ocPhase === "snapshotting" && <span style={{ color: "#FF6B00" }}>▮▮▮ Step 3/4 · Saving snapshot</span>}
+              {ocPhase === "done" && <span style={{ color: "#00FF41" }}>✓ Step 4/4 · Calibration complete — CSV downloaded</span>}
+              {ocPhase === "cancelled" && <span style={{ color: "#FF3B30" }}>✕ Cancelled by user — original state restored</span>}
+            </span>
+            <span data-testid="oc-phase-id" className="text-neutral-600">phase: {ocPhase}</span>
+          </div>
+        )}
 
         {/* Config */}
         <div className="px-4 py-3 border-b border-neutral-800 bg-black/60 space-y-3">
@@ -412,6 +505,40 @@ const AutoCaptureSequence = ({ onClose }) => {
 
         {/* Results */}
         <div className="grow overflow-auto">
+          {ocSummary && oneClick && (
+            <div
+              className="m-3 p-4 border-2 border-[#FFD60A] bg-[#FFD60A]/5"
+              data-testid="oc-summary"
+            >
+              <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-[#FFD60A] mb-2">
+                ⚡ Calibration Summary
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div className="text-neutral-400">Channels swept</div>
+                <div className="text-white font-bold text-right tabular-nums" data-testid="oc-sum-swept">{ocSummary.swept}</div>
+                <div className="text-neutral-400">Gains adjusted</div>
+                <div className="text-white font-bold text-right tabular-nums" data-testid="oc-sum-matched">{ocSummary.matched}</div>
+                <div className="text-neutral-400">Snapshot saved</div>
+                <div className="text-white font-bold text-right truncate" data-testid="oc-sum-snapshot">{ocSummary.snapshot}</div>
+                <div className="text-neutral-400">CSV exported</div>
+                <div className="text-white font-bold text-right truncate" data-testid="oc-sum-csv">{ocSummary.csv}</div>
+              </div>
+              {appliedUndo && (
+                <div className="mt-3 pt-3 border-t border-[#FFD60A]/30 flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-neutral-400">
+                    Don&apos;t like the result? Roll back every gain change in one click.
+                  </span>
+                  <button
+                    onClick={undoLevelMatch}
+                    data-testid="oc-undo"
+                    className="px-3 py-1.5 border border-[#FFD60A] text-[#FFD60A] text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#FFD60A] hover:text-black"
+                  >
+                    ↶ Undo Calibration
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {results.length === 0 ? (
             <div className="h-full min-h-[200px] flex items-center justify-center text-xs font-mono uppercase tracking-[0.2em] text-neutral-500 text-center px-6" data-testid="ac-empty">
               Configure scope/level/dwell, point a calibrated mic at the rig, then press ▶ Start Sequence.<br/>

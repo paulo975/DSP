@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend-only testing of Iteration 16 One-Click Calibration pipeline. All 11 functional invariants verified end-to-end through the real preview URL. Pipeline auto-starts, sweeps 16 PHY channels (~30s), shows phase banner progression (sweep → matching → snapshotting → done), renders Calibration Summary card with correct values (swept=16, matched=0 safety-correct, snapshot name starts with 'One-Click', CSV filename matches /^one-click-calibration-.+\\.csv$/), fires CSV download event, persists snapshot to localStorage dsp_snapshots_v1, disables ac-close during matching/snapshotting (re-enables at done). Regression: Auto-Capture flow still produces (0) disabled Apply Match; pn-type-pink/white/sweep, meters-popout, open-snapshot all render. One safety bug found in read-only mode.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AutoCaptureSequence (One-Click pipeline)",
+        "issue": "Read-only safety violation: pipeline does NOT halt in read-only mode. Expected phase to remain 'sweep' with no progress, but the pipeline advances all the way to 'done' — a snapshot IS saved to localStorage and a CSV download IS triggered in read-only mode (observed: ocSummary {swept:0, matched:0, snapshot:'One-Click 6/26/2026, 4:30:54 PM', csv:'one-click-calibration-...csv'}). The ac-error 'App is in read-only mode — unlock first.' DOES appear (correct), but the pipeline doesn't actually stop. Root cause: in AutoCaptureSequence.jsx line 84, `start()` early-returns `undefined` when readOnly is true, so in runOneClickPipeline() line 238 the check `if (sweepRes?.cancelled)` is falsy (undefined) and the pipeline continues to matching → snapshotting → done. Fix: when readOnly, return `{cancelled: true, count: 0}` from start(), OR change orchestrator guard to `if (!sweepRes || sweepRes.cancelled)`.",
+        "selector": "[data-testid='oc-phase-id']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix read-only safety violation in AutoCaptureSequence.jsx: when `readOnly` is true, `start()` should return `{cancelled: true, count: 0}` (currently returns undefined) so `runOneClickPipeline()` halts at the 'sweep' phase. As written, a locked app still writes a snapshot to localStorage and triggers a CSV download — which contradicts the safety-first design of read-only mode."
+  ],
+  "critical_code_review_comments": [
+    "AutoCaptureSequence.jsx line 83-85: `start()` returns `undefined` on readOnly early-return; orchestrator depends on `sweepRes?.cancelled` which is therefore falsy — pipeline does not halt. Return `{cancelled: true, count: 0}` or strengthen orchestrator guard.",
+    "AutoCaptureSequence.jsx line 262: `downloadCsv(csvName, results.length ? results : [])` — when results is empty (readOnly scenario) it still writes a CSV with only the header row and fires the download. Consider skipping CSV when swept===0.",
+    "AutoCaptureSequence.jsx 615 lines — getting close to the 700-line guideline; consider extracting `runOneClickPipeline` + CSV helpers into a separate hooks/util module on next iteration.",
+    "ocPhase is not reset across re-mounts; relies on the modal unmounting. Fine for current flow but startedOneClickRef coupling means if the user closes-and-reopens One-Click in the same session, it WILL re-fire (because component unmounts each time) — this is correct behaviour, just noting the design depends on full unmount."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "92%"},
+  "test_credentials": "n/a (frontend-only, no auth)",
+  "seed_data_creation": "Cleared dsp_snapshots_v1 localStorage between runs to avoid stale entries.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 16 One-Click Calibration: 10/11 review-request invariants pass on first try. The single failing invariant is the read-only test — pipeline does not stop at 'sweep' phase because start() returns undefined on readOnly early-return, while orchestrator only checks sweepRes?.cancelled. Verified via real preview URL https://code-fixer-248.preview.emergentagent.com. Captured phase progression: idle → sweep → snapshotting → done (matching transitions in <500ms so was occasionally missed by 500ms polling — not a bug, just timing). ac-close correctly disabled during snapshotting and re-enabled at done. CSV download fired exactly once per pipeline run. localStorage entry confirmed. Regression of open-auto-capture and top-bar pn-type-* buttons all OK.",
+  "rca of the issue": "Bug: read-only pipeline does not halt.\nRepro: 1) Open app, navigate to Meters. 2) Toggle TopBar from EDITABLE → LOCKED. 3) Click open-one-click. 4) Wait 3s.\nObserved: oc-phase-id shows 'phase: done', ocSummary renders with swept=0/matched=0 but snapshot+CSV created. The ac-error correctly shows 'App is in read-only mode — unlock first.'\nExpected (per review request): phase remains 'sweep' with no progress; no snapshot saved; no CSV downloaded.\nRoot cause: AutoCaptureSequence.jsx:83-85 — `if (readOnly) { setError(...); return; }` returns undefined. In runOneClickPipeline line 237-238, `const sweepRes = await start(); if (sweepRes?.cancelled) return;` — undefined?.cancelled === undefined (falsy) so the early-exit is skipped and the pipeline proceeds through matching → snapshotting → done unconditionally.\nMitigation (one-line fix): change line 84 to `if (readOnly) { setError('App is in read-only mode — unlock first.'); setRunning(false); return { cancelled: true, count: 0 }; }`. Alternatively strengthen orchestrator: `if (!sweepRes || sweepRes.cancelled || sweepRes.count === 0) { setOcPhase('cancelled'); return; }`."
+}
