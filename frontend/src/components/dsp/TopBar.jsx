@@ -3,7 +3,7 @@ import { useDsp } from "@/lib/dspStore";
 import { VERSIONS } from "@/lib/dspDefaults";
 import { audioEngine } from "@/lib/audioEngine";
 
-const TopBar = ({ tab, setTab, onOpenPresets }) => {
+const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint }) => {
   const { state, setVersion, setMaster, setAllPinkNoise, readOnly, toggleReadOnly } = useDsp();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState(null);
@@ -231,6 +231,14 @@ const TopBar = ({ tab, setTab, onOpenPresets }) => {
             className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border border-[#FF6B00] text-[#FF6B00] hover:bg-[#FF6B00] hover:text-black"
           >
             Presets
+          </button>
+          <button
+            onClick={onOpenPrint}
+            data-testid="open-print"
+            title="Print or save a PDF channel map with descriptions, gains, routing, etc."
+            className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border border-neutral-700 text-neutral-300 hover:border-white hover:text-white"
+          >
+            ⎙ Map
           </button>
         </div>
       </div>

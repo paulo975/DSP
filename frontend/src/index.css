@@ -173,6 +173,56 @@ input[type="range"].vertical {
         );
 }
 
+/* ============================================================
+   Print stylesheet — when window.print() runs, hide the app shell
+   and show ONLY the .print-area card with clean black-on-white
+   typography. Used by the "Print Channel Map" feature.
+   ============================================================ */
+@media print {
+    body,
+    .App,
+    .dsp-shell {
+        background: #fff !important;
+        color: #000 !important;
+        overflow: visible !important;
+        height: auto !important;
+    }
+    /* Hide everything EXCEPT the print modal + its print area */
+    body > *:not(.print-host) {
+        display: none !important;
+    }
+    .print-host,
+    .print-host > * {
+        position: static !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        max-height: none !important;
+        height: auto !important;
+        overflow: visible !important;
+        padding: 0 !important;
+    }
+    .print-area {
+        box-shadow: none !important;
+        border: none !important;
+        background: #fff !important;
+        color: #000 !important;
+        max-width: none !important;
+        max-height: none !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+    table {
+        page-break-inside: auto;
+    }
+    tr {
+        page-break-inside: avoid;
+    }
+    @page {
+        size: A4 landscape;
+        margin: 12mm;
+    }
+}
+
 @layer base {
     :root {
         --background: 0 0% 4%;

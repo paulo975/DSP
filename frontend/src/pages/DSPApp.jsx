@@ -9,6 +9,7 @@ import CompEditor from "@/components/dsp/CompEditor";
 import PresetManager from "@/components/dsp/PresetManager";
 import SelectedChannelPanel from "@/components/dsp/SelectedChannelPanel";
 import ChannelPills from "@/components/dsp/ChannelPills";
+import ChannelMapPrint from "@/components/dsp/ChannelMapPrint";
 
 const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBank }) => {
   const { state, readOnly } = useDsp();
@@ -84,13 +85,14 @@ const DSPShell = () => {
   const [eqOutId, setEqOutId] = useState(null);
   const [compOutId, setCompOutId] = useState(null);
   const [presetsOpen, setPresetsOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [bank, setBank] = useState("phy");
   const { readOnly } = useDsp();
 
   return (
-    <div className="h-screen flex flex-col bg-[#0A0A0A] text-white" data-testid="dsp-shell">
-      <TopBar tab={tab} setTab={setTab} onOpenPresets={() => setPresetsOpen(true)} />
+    <div className="h-screen flex flex-col bg-[#0A0A0A] text-white dsp-shell" data-testid="dsp-shell">
+      <TopBar tab={tab} setTab={setTab} onOpenPresets={() => setPresetsOpen(true)} onOpenPrint={() => setPrintOpen(true)} />
       {readOnly && (
         <div
           className="px-4 py-1 text-center text-[10px] font-mono uppercase tracking-[0.2em] font-bold border-b"
@@ -130,6 +132,11 @@ const DSPShell = () => {
       {eqOutId && <EqEditor outputId={eqOutId} onClose={() => setEqOutId(null)} />}
       {compOutId && <CompEditor outputId={compOutId} onClose={() => setCompOutId(null)} />}
       {presetsOpen && <PresetManager onClose={() => setPresetsOpen(false)} />}
+      {printOpen && (
+        <div className="print-host">
+          <ChannelMapPrint onClose={() => setPrintOpen(false)} />
+        </div>
+      )}
     </div>
   );
 };
