@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 8 RETEST — Read-Only/Showcase Mode after fixing the React-19 boolean-attribute bug + adding defense-in-depth store guard. ALL 4 CRITICAL FAILURES from iteration 7 are now PASSING. Verified via DOM-level assertions and click-then-compare-state pattern.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_8.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIX VERIFIED: All three `inert={readOnly || undefined}` sites in DSPApp.jsx (lines 22, 40, 116) now correctly emit the HTML inert attribute when readOnly is true. Confirmed via `document.querySelectorAll('[inert]').length === 2` when locked (channels-edit-region + channel-strips wrapper on Channels tab; Matrix tab shows 1 inert ancestor over routing cells). No React-19 warnings emitted.",
+    "DEFENSE-IN-DEPTH VERIFIED: dspStore.js wraps all mutating helpers (updateOutput, updateOutputDeep, updateInput, toggleRoute, clearRoutes, setVersion, setMaster, resetChannel, setAllPinkNoise) with `guard()` that no-ops when readOnly is true. `loadPresetState` is correctly NOT guarded so users can preview presets while locked. This is a clean belt-and-braces protection in case inert ever fails again.",
+    "Inert-based protection is now end-to-end: out-out_phy-0-mute, sel-mute, sel-solo, matrix routing cell route-in_phy_0-out_phy_5 all retained their style.background unchanged across click attempts while locked. Browser does not dispatch click events into the inert subtree, so the underlying store actions are never invoked (guard never fires either — which is the ideal happy path).",
+    "Console logs are clean: 0 console warnings, no `Received an empty string for a boolean attribute … inert` warning. Previously this was a noisy runtime warning on every toggle.",
+    "Reload behavior verified: readOnly is in-memory only (useState in DspProvider), so after `page.reload()` the app boots UNLOCKED (inert nodes = 0 on Channels tab). This is per spec.",
+    "Unlock-then-edit verified as regression: after unlocking, clicking out-out_phy-0-mute changes background from `transparent` to `rgb(255, 59, 48)` and back. All previous editing flows remain functional when UNLOCKED."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (all 4 previously-failing critical checks now pass; plus regression checks for unlock/edit/reload/sel-mute/sel-solo/matrix-cell)"},
+  "test_credentials": "n/a — no auth in this app",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 7's CRITICAL bug (React-19 boolean attribute: `inert={readOnly ? '' : undefined}` not emitting the attribute) is FIXED at DSPApp.jsx lines 22, 40, 116 → now `inert={readOnly || undefined}`. Defense-in-depth: dspStore.js guard() wraps all mutating helpers in api object (around line 137-165). Confirmed working via: (1) `document.querySelector('[data-testid=\"channels-edit-region\"]').hasAttribute('inert')` → true while locked; (2) state.background of out-out_phy-0-mute / sel-mute / sel-solo / route cells did NOT change after click attempts while locked; (3) no React empty-string boolean warning in console; (4) reload boots UNLOCKED; (5) after unlock, all controls work normally. Read-Only mode is now fully functional. Minor unverified items: did not exhaustively test EQ band marker drag (cx/cy not present on SVG element in our view), and did not click each individual matrix cell or each preset list item — but the inert wrapper covers the whole region so behavior is consistent.",
+  "rca of the issue": "N/A — iteration 7's RCA was correctly diagnosed and fixed. The fix `inert={readOnly || undefined}` passes boolean `true` which React 19 emits as a real HTML attribute, and the store-level guard provides a secondary safety net."
+}

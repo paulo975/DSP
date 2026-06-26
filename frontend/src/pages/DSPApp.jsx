@@ -19,7 +19,7 @@ const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBan
     <div className="h-full flex flex-col bg-[#0A0A0A]" data-testid="channels-view">
       {/* Yamaha-style selected channel hero panel — wrapped in inert when read-only.
           We keep the panel visible/selectable but make its inputs non-interactive. */}
-      <div inert={readOnly ? "" : undefined} data-testid="channels-edit-region">
+      <div inert={readOnly || undefined} data-testid="channels-edit-region">
         <SelectedChannelPanel
           outputId={selectedId}
           onOpenEq={onOpenEq}
@@ -37,7 +37,7 @@ const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBan
       />
 
       {/* Channel strips below — also inert during read-only */}
-      <div inert={readOnly ? "" : undefined} className="overflow-x-auto grow">
+      <div inert={readOnly || undefined} className="overflow-x-auto grow">
         <div className="flex h-full">
           <div className="flex flex-col border-r border-[#FF6B00]/30">
             <div className="px-3 py-1.5 bg-[#FF6B00] text-black text-[10px] font-mono font-bold uppercase tracking-[0.2em]">
@@ -113,7 +113,7 @@ const DSPShell = () => {
         )}
         {tab === "meters" && <MetersView />}
         {tab === "matrix" && (
-          <div inert={readOnly ? "" : undefined} className="h-full">
+          <div inert={readOnly || undefined} className="h-full">
             <MatrixRouter />
           </div>
         )}

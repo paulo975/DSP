@@ -131,27 +131,37 @@ export const DspProvider = ({ children }) => {
     audioEngine.applyRouting(state);
   }, [state]);
 
-  const api = useMemo(
-    () => ({
+  const api = useMemo(() => {
+    // Guard mutating actions when in read-only mode. Selectors stay untouched.
+    // Whitelisted: `loadPresetState` is a user-initiated read action that we want
+    // to keep usable even while locked (loading a preset is "viewing" it).
+    const guard = (fn) => (...args) => {
+      if (readOnly) {
+        console.info("[dspStore] action ignored: app is in read-only mode");
+        return;
+      }
+      return fn(...args);
+    };
+    return {
       state,
       dispatch,
       readOnly,
       setReadOnly,
       toggleReadOnly: () => setReadOnly((v) => !v),
-      // helpers
-      updateOutput: (id, patch) => dispatch({ type: "updateOutput", id, patch }),
-      updateOutputDeep: (id, fn) => dispatch({ type: "updateOutputDeep", id, fn }),
-      updateInput: (id, patch) => dispatch({ type: "updateInput", id, patch }),
-      toggleRoute: (outId, inId) => dispatch({ type: "toggleRoute", outId, inId }),
-      clearRoutes: () => dispatch({ type: "clearRoutes" }),
-      setVersion: (version) => dispatch({ type: "setVersion", version }),
-      setMaster: (patch) => dispatch({ type: "setMaster", patch }),
-      resetChannel: (id) => dispatch({ type: "resetChannel", id }),
-      setAllPinkNoise: (enabled, level) => dispatch({ type: "setAllPinkNoise", enabled, level }),
+      // helpers — all wrapped by the read-only guard
+      updateOutput: guard((id, patch) => dispatch({ type: "updateOutput", id, patch })),
+      updateOutputDeep: guard((id, fn) => dispatch({ type: "updateOutputDeep", id, fn })),
+      updateInput: guard((id, patch) => dispatch({ type: "updateInput", id, patch })),
+      toggleRoute: guard((outId, inId) => dispatch({ type: "toggleRoute", outId, inId })),
+      clearRoutes: guard(() => dispatch({ type: "clearRoutes" })),
+      setVersion: guard((version) => dispatch({ type: "setVersion", version })),
+      setMaster: guard((patch) => dispatch({ type: "setMaster", patch })),
+      resetChannel: guard((id) => dispatch({ type: "resetChannel", id })),
+      setAllPinkNoise: guard((enabled, level) => dispatch({ type: "setAllPinkNoise", enabled, level })),
+      // Unguarded: user-initiated viewing actions.
       loadPresetState: (s) => dispatch({ type: "loadPreset", state: s }),
-    }),
-    [state, readOnly],
-  );
+    };
+  }, [state, readOnly]);
 
   return <DspContext.Provider value={api}>{children}</DspContext.Provider>;
 };
