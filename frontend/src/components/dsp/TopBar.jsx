@@ -15,6 +15,7 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint }) => {
   const pinkAllOn = state.outputs.length > 0 && state.outputs.every((o) => o.pinkNoise?.enabled);
   // Master level slider mirrors first output's level (they're broadcast together).
   const pinkLevel = state.outputs[0]?.pinkNoise?.level ?? -20;
+  const pinkType = state.outputs[0]?.pinkNoise?.type ?? "pink";
 
   const onFile = async (e) => {
     const f = e.target.files?.[0];

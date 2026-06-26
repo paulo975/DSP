@@ -120,11 +120,19 @@ const MetersView = () => {
   return (
     <div className="h-full overflow-auto bg-[#0a0a0a]" data-testid="meters-view">
       <div className="px-4 py-3 border-b border-neutral-800 bg-black flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-3">
           <h2 className="text-xl font-semibold text-white tracking-tight">All Channels · Meters</h2>
-          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-neutral-500 mt-0.5">
-            Real-time input/output levels · dBFS peak-hold readout
-          </p>
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}#popout=meters`;
+              window.open(url, "dsp-meters-popout", "width=1100,height=720,toolbar=no,location=no");
+            }}
+            data-testid="meters-popout"
+            title="Open Meters in a separate window (for multi-monitor setups)"
+            className="px-3 py-1 border border-neutral-700 text-neutral-300 text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:border-[#00B7FF] hover:text-[#00B7FF] transition-colors"
+          >
+            ↗ Pop Out
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-500">

@@ -19,7 +19,11 @@ const loadFromStorage = () => {
     parsed.outputs = (parsed.outputs || []).map((o) => ({
       ...o,
       description: o.description ?? "",
-      pinkNoise: o.pinkNoise || { enabled: false, level: -20 },
+      pinkNoise: {
+        enabled: o.pinkNoise?.enabled ?? false,
+        level: o.pinkNoise?.level ?? -20,
+        type: o.pinkNoise?.type ?? "pink",
+      },
     }));
     parsed.inputs = (parsed.inputs || []).map((i) => ({
       ...i,
@@ -90,6 +94,7 @@ const reducer = (state, action) => {
         pinkNoise: {
           enabled: action.enabled !== undefined ? action.enabled : o.pinkNoise?.enabled ?? false,
           level: action.level !== undefined ? action.level : o.pinkNoise?.level ?? -20,
+          type: action.type !== undefined ? action.type : o.pinkNoise?.type ?? "pink",
         },
       }));
       return { ...state, outputs };
@@ -162,7 +167,7 @@ export const DspProvider = ({ children }) => {
       setVersion: guard((version) => dispatch({ type: "setVersion", version })),
       setMaster: guard((patch) => dispatch({ type: "setMaster", patch })),
       resetChannel: guard((id) => dispatch({ type: "resetChannel", id })),
-      setAllPinkNoise: guard((enabled, level) => dispatch({ type: "setAllPinkNoise", enabled, level })),
+      setAllPinkNoise: guard((enabled, level, type) => dispatch({ type: "setAllPinkNoise", enabled, level, type })),
       // Unguarded: user-initiated viewing actions.
       loadPresetState: (s) => dispatch({ type: "loadPreset", state: s }),
     };

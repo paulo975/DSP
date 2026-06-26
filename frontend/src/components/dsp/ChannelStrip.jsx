@@ -252,15 +252,30 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
 
       {/* ----- Pan ----- */}
       <Section title="Pan" accent={accentTone}>
+        {/* Visual indicator: dot position L↔R */}
+        <div className="relative h-3 bg-black/60 border border-neutral-800 mb-1">
+          <div className="absolute top-0 bottom-0 left-1/2 w-px bg-neutral-700" />
+          <div
+            className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
+            style={{
+              left: `${((output.pan + 100) / 200) * 100}%`,
+              transform: "translate(-50%, -50%)",
+              background: "#FF6B00",
+              boxShadow: "0 0 4px #FF6B00",
+            }}
+          />
+        </div>
         <input
           type="range"
           min={-100}
           max={100}
           step={1}
           value={output.pan}
+          onDoubleClick={() => setField({ pan: 0 })}
           onChange={(e) => setField({ pan: Number(e.target.value) })}
           className="w-full accent-[#FF6B00]"
           data-testid={tid("pan")}
+          title="Double-click to center"
         />
         <div className="flex justify-between text-[9px] font-mono mt-0.5">
           <span className="text-neutral-600">L</span>

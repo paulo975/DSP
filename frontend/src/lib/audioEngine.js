@@ -59,6 +59,48 @@ class AudioEngine {
     return buffer;
   }
 
+  // White noise: flat-spectrum random samples in [-1, 1] * 0.3.
+  _ensureWhiteBuffer() {
+    if (this._whiteBuffer) return this._whiteBuffer;
+    const ctx = this.ensureContext();
+    const length = ctx.sampleRate * 5;
+    const buf = ctx.createBuffer(1, length, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < length; i++) d[i] = (Math.random() * 2 - 1) * 0.3;
+    this._whiteBuffer = buf;
+    return buf;
+  }
+
+  // Exponential sine sweep 20 Hz → 20 kHz over 8 s, then loops.
+  _ensureSweepBuffer() {
+    if (this._sweepBuffer) return this._sweepBuffer;
+    const ctx = this.ensureContext();
+    const dur = 8;
+    const length = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, length, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    const fStart = 20;
+    const fEnd = 20000;
+    const k = Math.log(fEnd / fStart) / dur;
+    let phase = 0;
+    let lastT = 0;
+    for (let i = 0; i < length; i++) {
+      const t = i / ctx.sampleRate;
+      const freq = fStart * Math.exp(k * t);
+      phase += 2 * Math.PI * freq * (t - lastT);
+      lastT = t;
+      d[i] = Math.sin(phase) * 0.3;
+    }
+    this._sweepBuffer = buf;
+    return buf;
+  }
+
+  _bufferForType(type) {
+    if (type === "white") return this._ensureWhiteBuffer();
+    if (type === "sweep") return this._ensureSweepBuffer();
+    return this._ensurePinkBuffer();
+  }
+
   // Build / rebuild graph based on the dsp state.
   buildGraph(state) {
     this.teardownGraph();
@@ -289,8 +331,28 @@ class AudioEngine {
     chain.gainL.gain.setTargetAtTime(left, now, tc);
     chain.gainR.gain.setTargetAtTime(right, now, tc);
 
-    // pink noise generator (per-output test signal)
-    const pn = out.pinkNoise || { enabled: false, level: -20 };
+    // pink/white/sweep test signal generator (per-output)
+    const pn = out.pinkNoise || { enabled: false, level: -20, type: "pink" };
+    const type = pn.type || "pink";
+    // Swap source buffer when type changes (cheap: just swap .buffer)
+    if (chain.pinkSrc && chain.pinkSrcType !== type) {
+      try {
+        const newBuf = this._bufferForType(type);
+        // BufferSource buffer can only be set once after construction in some
+        // engines — recreate the node when type changes for cross-browser safety.
+        try { chain.pinkSrc.stop(); } catch (e) { /* noop */ }
+        try { chain.pinkSrc.disconnect(); } catch (e) { /* noop */ }
+        const ns = this.ctx.createBufferSource();
+        ns.buffer = newBuf;
+        ns.loop = true;
+        ns.connect(chain.pinkGain);
+        ns.start(0);
+        chain.pinkSrc = ns;
+        chain.pinkSrcType = type;
+      } catch (e) {
+        console.warn("[audioEngine] test signal swap failed:", e);
+      }
+    }
     chain.pinkGain.gain.setTargetAtTime(
       pn.enabled ? dbToGain(pn.level) : 0,
       now,
