@@ -7,6 +7,11 @@ import { audioEngine } from "./audioEngine";
 const STORAGE_KEY = "dsp_state_v1";
 const PRESETS_KEY = "dsp_presets_v1";
 
+// Popout window mode: the meters pop-out shouldn't run its own audio graph or
+// overwrite localStorage. It only mirrors state from the main window via the
+// `storage` event + meter levels via BroadcastChannel (see audioEngine).
+const IS_POPOUT = typeof window !== "undefined" && window.location.hash === "#popout=meters";
+
 const DspContext = createContext(null);
 
 const loadFromStorage = () => {
@@ -94,7 +99,7 @@ const reducer = (state, action) => {
         pinkNoise: {
           enabled: action.enabled !== undefined ? action.enabled : o.pinkNoise?.enabled ?? false,
           level: action.level !== undefined ? action.level : o.pinkNoise?.level ?? -20,
-          type: action.type !== undefined ? action.type : o.pinkNoise?.type ?? "pink",
+          type: action.noiseType !== undefined ? action.noiseType : o.pinkNoise?.type ?? "pink",
         },
       }));
       return { ...state, outputs };
@@ -110,8 +115,9 @@ export const DspProvider = ({ children }) => {
   const [readOnly, setReadOnly] = useState(false); // UI-only "showcase / lock" mode
   const builtForVersionRef = useRef(null);
 
-  // Persist
+  // Persist (skipped in popout — popout only reads state, never writes it)
   useEffect(() => {
+    if (IS_POPOUT) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
@@ -119,8 +125,29 @@ export const DspProvider = ({ children }) => {
     }
   }, [state]);
 
-  // (Re)build audio graph only when version changes or first mount
+  // Popout: re-hydrate from localStorage whenever the main window saves.
   useEffect(() => {
+    if (!IS_POPOUT) return undefined;
+    const onStorage = (e) => {
+      if (e.key !== STORAGE_KEY || !e.newValue) return;
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (parsed?.version && VERSIONS[parsed.version]) {
+          dispatch({ type: "init", state: parsed });
+        }
+      } catch (err) {
+        console.warn("[dspStore] Failed to sync state from storage event:", err);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // (Re)build audio graph only when version changes or first mount.
+  // In popout mode we never build a local audio graph — meter values are
+  // received from the main window via BroadcastChannel inside audioEngine.
+  useEffect(() => {
+    if (IS_POPOUT) return;
     if (builtForVersionRef.current !== state.version) {
       audioEngine.buildGraph(state);
       builtForVersionRef.current = state.version;
@@ -167,7 +194,7 @@ export const DspProvider = ({ children }) => {
       setVersion: guard((version) => dispatch({ type: "setVersion", version })),
       setMaster: guard((patch) => dispatch({ type: "setMaster", patch })),
       resetChannel: guard((id) => dispatch({ type: "resetChannel", id })),
-      setAllPinkNoise: guard((enabled, level, type) => dispatch({ type: "setAllPinkNoise", enabled, level, type })),
+      setAllPinkNoise: guard((enabled, level, noiseType) => dispatch({ type: "setAllPinkNoise", enabled, level, noiseType })),
       // Unguarded: user-initiated viewing actions.
       loadPresetState: (s) => dispatch({ type: "loadPreset", state: s }),
     };

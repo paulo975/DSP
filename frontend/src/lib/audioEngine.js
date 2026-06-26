@@ -20,6 +20,52 @@ class AudioEngine {
     this.playing = false;
     this.startedAt = 0;
     this.startOffset = 0;
+    // Popout meter sync (BroadcastChannel) — see _initBroadcast()
+    this._isPopout = typeof window !== "undefined" && window.location.hash === "#popout=meters";
+    this._remoteLevels = {};
+    this._bc = null;
+    this._initBroadcast();
+  }
+
+  // Bridge meter levels between the main window and the meter pop-out window.
+  // - Main window: samples all analysers at ~20 Hz and posts via BroadcastChannel.
+  // - Popout window: listens for those messages and caches them in _remoteLevels.
+  //   The get*Level/getCompReduction methods read from this cache when in popout
+  //   mode so the secondary monitor view stays in sync with the live engine.
+  _initBroadcast() {
+    if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+    try {
+      this._bc = new BroadcastChannel("dsp-meters-sync");
+    } catch (e) {
+      console.warn("[audioEngine] BroadcastChannel unavailable:", e);
+      return;
+    }
+    if (this._isPopout) {
+      this._bc.onmessage = (ev) => {
+        if (ev?.data && typeof ev.data === "object") {
+          this._remoteLevels = ev.data;
+        }
+      };
+    } else {
+      this._broadcastTimer = setInterval(() => {
+        if (!this._bc) return;
+        const payload = {};
+        Object.keys(this.outputChains).forEach((id) => {
+          const chain = this.outputChains[id];
+          payload[`out:${id}`] = this._readAnalyser(this.analysers[id]);
+          payload[`in:${id}`] = this._readAnalyser(chain?.inputAnalyser);
+          const c = chain?.comp;
+          if (c) {
+            const r = c.reduction;
+            payload[`gr:${id}`] = typeof r === "number" ? r : (r?.value || 0);
+          }
+        });
+        Object.keys(this.inputBusAnalysers).forEach((id) => {
+          payload[`inBus:${id}`] = this._readAnalyser(this.inputBusAnalysers[id]);
+        });
+        try { this._bc.postMessage(payload); } catch (e) { /* noop */ }
+      }, 50);
+    }
   }
 
   ensureContext() {
@@ -487,18 +533,21 @@ class AudioEngine {
 
   // Return RMS-like level (0..1) for an output channel using its analyser.
   getOutputLevel(outId) {
+    if (this._isPopout) return this._remoteLevels[`out:${outId}`] || 0;
     const a = this.analysers[outId];
     return this._readAnalyser(a);
   }
 
   // Return RMS-like level (0..1) at the input of the chain (pre-DSP, post-routing).
   getInputLevel(outId) {
+    if (this._isPopout) return this._remoteLevels[`in:${outId}`] || 0;
     const chain = this.outputChains[outId];
     return this._readAnalyser(chain?.inputAnalyser);
   }
 
   // Return RMS-like level (0..1) of the raw input bus (post-summing, pre-routing).
   getInputBusLevel(inputId) {
+    if (this._isPopout) return this._remoteLevels[`inBus:${inputId}`] || 0;
     return this._readAnalyser(this.inputBusAnalysers[inputId]);
   }
 
@@ -506,6 +555,7 @@ class AudioEngine {
   // The DynamicsCompressor node exposes `.reduction` as a Number on modern browsers
   // (was an AudioParam in older specs — handle both).
   getCompReduction(outputId) {
+    if (this._isPopout) return this._remoteLevels[`gr:${outputId}`] || 0;
     const chain = this.outputChains[outputId];
     if (!chain || !chain.comp) return 0;
     const r = chain.comp.reduction;

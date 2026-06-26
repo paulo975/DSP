@@ -128,7 +128,7 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
         </Btn>
       </div>
 
-      {/* ----- Pink Noise toggle (test signal) ----- */}
+      {/* ----- Test signal (pink/white/sweep) per-channel toggle ----- */}
       <div className="px-2 pt-1">
         <Btn
           active={output.pinkNoise?.enabled}
@@ -137,7 +137,9 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
           testId={tid("pink-noise")}
           full
         >
-          {output.pinkNoise?.enabled ? `▮▮ PINK ${output.pinkNoise.level.toFixed(0)}` : "▮ PINK NOISE"}
+          {output.pinkNoise?.enabled
+            ? `▮▮ ${(output.pinkNoise?.type || "pink").toUpperCase()} ${output.pinkNoise.level.toFixed(0)}`
+            : `▮ ${(output.pinkNoise?.type || "pink").toUpperCase()} OFF`}
         </Btn>
       </div>
 
@@ -250,21 +252,61 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
         </div>
       </Section>
 
-      {/* ----- Pan ----- */}
+      {/* ----- Pan (analog-style L/R balance meter) ----- */}
       <Section title="Pan" accent={accentTone}>
-        {/* Visual indicator: dot position L↔R */}
-        <div className="relative h-3 bg-black/60 border border-neutral-800 mb-1">
-          <div className="absolute top-0 bottom-0 left-1/2 w-px bg-neutral-700" />
-          <div
-            className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
-            style={{
-              left: `${((output.pan + 100) / 200) * 100}%`,
-              transform: "translate(-50%, -50%)",
-              background: "#FF6B00",
-              boxShadow: "0 0 4px #FF6B00",
-            }}
-          />
-        </div>
+        {(() => {
+          // Equal-power pan visual — same math the audio engine uses.
+          const pNorm = (output.pan + 100) / 200; // 0..1
+          const angle = pNorm * (Math.PI / 2);
+          const lGain = Math.cos(angle);
+          const rGain = Math.sin(angle);
+          const lPct = lGain * 50; // 0..50% (half-width)
+          const rPct = rGain * 50;
+          return (
+            <div
+              className="relative h-6 bg-black border border-neutral-800 mb-1 overflow-hidden cursor-pointer select-none"
+              onDoubleClick={() => setField({ pan: 0 })}
+              title="Double-click to recenter"
+              data-testid={tid("pan-visual")}
+            >
+              {/* L gain bar (grows leftward from center) */}
+              <div
+                className="absolute top-0 bottom-0 transition-[width] duration-75"
+                style={{
+                  right: "50%",
+                  width: `${lPct}%`,
+                  background: `linear-gradient(to left, ${output.pan <= 0 ? "#FF6B00" : "#6B3000"}, ${output.pan <= 0 ? "#7a3300" : "#2a1300"})`,
+                  opacity: 0.85,
+                }}
+              />
+              {/* R gain bar (grows rightward from center) */}
+              <div
+                className="absolute top-0 bottom-0 transition-[width] duration-75"
+                style={{
+                  left: "50%",
+                  width: `${rPct}%`,
+                  background: `linear-gradient(to right, ${output.pan >= 0 ? "#FF6B00" : "#6B3000"}, ${output.pan >= 0 ? "#7a3300" : "#2a1300"})`,
+                  opacity: 0.85,
+                }}
+              />
+              {/* Center tick */}
+              <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/40" />
+              {/* Position cursor (head) */}
+              <div
+                className="absolute top-0 bottom-0 w-[2px] transition-[left] duration-75"
+                style={{
+                  left: `${pNorm * 100}%`,
+                  background: "#FFFFFF",
+                  boxShadow: "0 0 6px #FFFFFF, 0 0 14px #FF6B00",
+                  transform: "translateX(-50%)",
+                }}
+              />
+              {/* Side labels */}
+              <span className="absolute top-0 left-1 text-[8px] font-mono font-bold text-neutral-600 leading-none pt-[2px] pointer-events-none">L</span>
+              <span className="absolute top-0 right-1 text-[8px] font-mono font-bold text-neutral-600 leading-none pt-[2px] pointer-events-none">R</span>
+            </div>
+          );
+        })()}
         <input
           type="range"
           min={-100}
@@ -275,11 +317,11 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
           onChange={(e) => setField({ pan: Number(e.target.value) })}
           className="w-full accent-[#FF6B00]"
           data-testid={tid("pan")}
-          title="Double-click to center"
+          title="Double-click slider or bar to recenter"
         />
         <div className="flex justify-between text-[9px] font-mono mt-0.5">
           <span className="text-neutral-600">L</span>
-          <span className="text-white font-bold">
+          <span className="text-white font-bold" data-testid={tid("pan-value")}>
             {output.pan === 0 ? "C" : output.pan > 0 ? `R${output.pan}` : `L${Math.abs(output.pan)}`}
           </span>
           <span className="text-neutral-600">R</span>

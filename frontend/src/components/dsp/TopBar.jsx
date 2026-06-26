@@ -159,11 +159,38 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint }) => {
           </span>
         </div>
 
-        {/* Pink Noise (test signal generator — broadcasts to ALL output chain inputs) */}
+        {/* Test Signal Generator: PINK / WHITE / SWEEP — broadcasts to ALL output chain inputs */}
         <div className="flex items-center gap-2 px-4 border-r border-neutral-800">
-          <span className="text-[9px] font-mono uppercase tracking-[0.18em]" style={{ color: pinkAllOn ? "#FF7AC6" : "#666" }}>
-            Pink Noise
+          <span
+            className="text-[9px] font-mono uppercase tracking-[0.18em]"
+            style={{ color: pinkAllOn ? "#FF7AC6" : "#666" }}
+            title="Test signal injected at the input of every output chain"
+          >
+            Test Sig
           </span>
+          {/* Type selector — pink / white / sweep */}
+          <div className="flex border border-neutral-800" data-testid="pn-type-group">
+            {[
+              { id: "pink", label: "PINK", tip: "Pink noise — equal energy per octave (PA tuning standard)" },
+              { id: "white", label: "WHT", tip: "White noise — flat spectrum (test full bandwidth)" },
+              { id: "sweep", label: "SWP", tip: "Logarithmic sine sweep 20 Hz → 20 kHz (8 s loop, frequency response)" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setAllPinkNoise(pinkAllOn || undefined, pinkLevel, t.id)}
+                disabled={readOnly}
+                data-testid={`pn-type-${t.id}`}
+                title={t.tip}
+                className="text-[9px] font-mono uppercase tracking-[0.15em] px-2 py-1.5 font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-r last:border-r-0 border-neutral-800"
+                style={{
+                  background: pinkType === t.id ? "#FF7AC6" : "transparent",
+                  color: pinkType === t.id ? "#000" : "#888",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
           <button
             onClick={() => setAllPinkNoise(!pinkAllOn, pinkLevel)}
             disabled={readOnly}
