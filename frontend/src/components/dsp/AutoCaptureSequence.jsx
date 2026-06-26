@@ -35,12 +35,32 @@ const downloadCsv = (filename, rows) => {
   URL.revokeObjectURL(url);
 };
 
+// Level-Match constants — keep the auto-correction conservative so a single
+// wiring error or a dead channel can't push faders to the rails.
+const MATCH_CLAMP_DB = 12; // maximum |correction| per channel
+const MATCH_FLOOR_DB = -55; // peaks at or below this are treated as "silent" → no correction
+const MATCH_DEADBAND_DB = 0.3; // ignore micro-corrections (audibly inaudible)
+
+// Compute per-channel correction (dB) needed to bring its measured peak up to
+// the chosen reference (average of the sweep or the target level used during
+// capture). Returns 0 for channels considered silent/dead.
+const computeCorrection = (row, refDb) => {
+  if (!Number.isFinite(row.peakDb) || row.peakDb <= MATCH_FLOOR_DB) return 0;
+  const raw = refDb - row.peakDb;
+  if (Math.abs(raw) < MATCH_DEADBAND_DB) return 0;
+  return Math.max(-MATCH_CLAMP_DB, Math.min(MATCH_CLAMP_DB, raw));
+};
+
+const clampGain = (g) => Math.max(-60, Math.min(12, g));
+
 const AutoCaptureSequence = ({ onClose }) => {
-  const { state, updateOutputDeep, readOnly } = useDsp();
+  const { state, updateOutput, updateOutputDeep, readOnly } = useDsp();
   const [scope, setScope] = useState("phy");
   const [levelDb, setLevelDb] = useState(-18);
   const [dwellMs, setDwellMs] = useState(1500);
   const [settleMs, setSettleMs] = useState(300);
+  const [matchMode, setMatchMode] = useState("avg"); // 'avg' | 'target' — Auto Level Match reference
+  const [appliedUndo, setAppliedUndo] = useState(null); // { changes: [{id, oldGain}], appliedAt } — enables Undo
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ idx: 0, total: 0, currentName: "" });
   const [results, setResults] = useState([]); // [{idx, id, name, kind, peakDb, targetDb}]
@@ -60,6 +80,7 @@ const AutoCaptureSequence = ({ onClose }) => {
     if (running) return;
     setError(null);
     setResults([]);
+    setAppliedUndo(null);
     setRunning(true);
     cancelRef.current = false;
 
@@ -154,6 +175,43 @@ const AutoCaptureSequence = ({ onClose }) => {
   const avg = results.length
     ? results.reduce((s, r) => s + r.peakDb, 0) / results.length
     : null;
+
+  // Reference level for Auto Level Match: average of the sweep, or the target
+  // dB the user dialled in at capture time.
+  const refDb = matchMode === "target" ? levelDb : avg;
+
+  // How many channels would actually move if Apply is pressed (i.e. survive
+  // the silent/dead-band/clamp filter). Used to gate the Apply button.
+  const correctableCount = (avg == null)
+    ? 0
+    : results.reduce((n, r) => n + (computeCorrection(r, refDb) !== 0 ? 1 : 0), 0);
+
+  const applyLevelMatch = () => {
+    if (readOnly || avg == null) return;
+    const changes = [];
+    results.forEach((r) => {
+      const correction = computeCorrection(r, refDb);
+      if (correction === 0) return;
+      const out = state.outputs.find((o) => o.id === r.id);
+      if (!out) return;
+      const oldGain = out.gain;
+      const newGain = clampGain(oldGain + correction);
+      changes.push({ id: r.id, oldGain, newGain });
+      updateOutput(r.id, { gain: newGain });
+    });
+    if (changes.length === 0) {
+      setError("All channels already within the dead-band — nothing to adjust.");
+      return;
+    }
+    setError(null);
+    setAppliedUndo({ changes, appliedAt: new Date().toISOString() });
+  };
+
+  const undoLevelMatch = () => {
+    if (!appliedUndo) return;
+    appliedUndo.changes.forEach((c) => updateOutput(c.id, { gain: c.oldGain }));
+    setAppliedUndo(null);
+  };
 
   return (
     <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6" data-testid="auto-capture-modal">
@@ -276,6 +334,59 @@ const AutoCaptureSequence = ({ onClose }) => {
                 Export CSV
               </button>
             )}
+            {/* Auto Level Match — appears after a sweep finishes. Adjusts each
+                channel's gain so all measured peaks land on the chosen reference
+                (sweep average by default, or the dialled-in target level). */}
+            {results.length > 0 && !running && !appliedUndo && (
+              <>
+                <div className="flex items-center gap-1 ml-2" data-testid="ac-match-group">
+                  <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-neutral-500">Match to</span>
+                  <button
+                    onClick={() => setMatchMode("avg")}
+                    data-testid="ac-match-avg"
+                    className="text-[9px] font-mono uppercase tracking-[0.15em] px-2 py-1 border font-bold"
+                    style={{
+                      background: matchMode === "avg" ? "#FFD60A" : "transparent",
+                      color: matchMode === "avg" ? "#000" : "#888",
+                      borderColor: matchMode === "avg" ? "#FFD60A" : "#2A2A2A",
+                    }}
+                  >
+                    AVG
+                  </button>
+                  <button
+                    onClick={() => setMatchMode("target")}
+                    data-testid="ac-match-target"
+                    className="text-[9px] font-mono uppercase tracking-[0.15em] px-2 py-1 border font-bold"
+                    style={{
+                      background: matchMode === "target" ? "#FFD60A" : "transparent",
+                      color: matchMode === "target" ? "#000" : "#888",
+                      borderColor: matchMode === "target" ? "#FFD60A" : "#2A2A2A",
+                    }}
+                  >
+                    TARGET
+                  </button>
+                </div>
+                <button
+                  onClick={applyLevelMatch}
+                  disabled={readOnly || correctableCount === 0}
+                  data-testid="ac-apply-match"
+                  title={readOnly ? "Unlock the app to apply" : `Adjusts ${correctableCount} channel(s) by up to ±${MATCH_CLAMP_DB} dB`}
+                  className="px-3 py-2 bg-[#FFD60A] text-black text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#FFE140] disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  ✦ Apply Match ({correctableCount})
+                </button>
+              </>
+            )}
+            {appliedUndo && !running && (
+              <button
+                onClick={undoLevelMatch}
+                data-testid="ac-undo-match"
+                title={`Revert ${appliedUndo.changes.length} channel gain change(s) applied ${new Date(appliedUndo.appliedAt).toLocaleTimeString()}`}
+                className="px-3 py-2 border-2 border-[#FFD60A] text-[#FFD60A] text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#FFD60A] hover:text-black ml-2"
+              >
+                ↶ Undo Match ({appliedUndo.changes.length})
+              </button>
+            )}
             {error && (
               <span className="text-[11px] font-mono text-[#FF3B30]" data-testid="ac-error">{error}</span>
             )}
@@ -316,6 +427,9 @@ const AutoCaptureSequence = ({ onClose }) => {
                   <th className="px-3 py-2 text-right">Peak</th>
                   <th className="px-3 py-2 text-right">Target</th>
                   <th className="px-3 py-2 text-right">Δ vs avg</th>
+                  <th className="px-3 py-2 text-right text-[#FFD60A]">
+                    Correction ({matchMode === "target" ? "→ target" : "→ avg"})
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -323,6 +437,10 @@ const AutoCaptureSequence = ({ onClose }) => {
                   const delta = avg != null ? r.peakDb - avg : 0;
                   const sevPeak = r.peakDb > -2 ? "#FF3B30" : r.peakDb > -6 ? "#FFB800" : r.peakDb > -50 ? "#00FF41" : "#666";
                   const deltaColor = Math.abs(delta) < 1 ? "#888" : Math.abs(delta) < 3 ? "#FFB800" : "#FF3B30";
+                  const correction = computeCorrection(r, refDb);
+                  const corrColor = correction === 0
+                    ? "#555"
+                    : Math.abs(correction) >= MATCH_CLAMP_DB - 0.01 ? "#FF3B30" : "#FFD60A";
                   return (
                     <tr key={r.id} className="border-b border-neutral-900 hover:bg-black/40" data-testid={`ac-row-${r.id}`}>
                       <td className="px-3 py-1.5 text-neutral-500 tabular-nums">{r.idx}</td>
@@ -334,6 +452,9 @@ const AutoCaptureSequence = ({ onClose }) => {
                       <td className="px-3 py-1.5 text-right tabular-nums text-neutral-400">{r.targetDb} dB</td>
                       <td className="px-3 py-1.5 text-right tabular-nums" style={{ color: deltaColor }}>
                         {delta >= 0 ? "+" : ""}{delta.toFixed(1)} dB
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums font-bold" style={{ color: corrColor }} data-testid={`ac-correction-${r.id}`}>
+                        {correction === 0 ? "—" : `${correction > 0 ? "+" : ""}${correction.toFixed(1)} dB`}
                       </td>
                     </tr>
                   );
@@ -350,6 +471,9 @@ const AutoCaptureSequence = ({ onClose }) => {
                     </td>
                     <td className="px-3 py-2 text-right text-neutral-500">—</td>
                     <td className="px-3 py-2 text-right text-neutral-500">—</td>
+                    <td className="px-3 py-2 text-right text-[#FFD60A] tabular-nums" data-testid="ac-correctable-count">
+                      {correctableCount} ch
+                    </td>
                   </tr>
                 </tfoot>
               )}

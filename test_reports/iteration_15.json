@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 15 (Auto Level Match) — fully verified via Playwright against the preview URL. All 9 review-request bullets confirmed: modal opens, sweep runs at dwell=500/settle=100, Apply Match button appears post-sweep alongside Export CSV, AVG/TARGET selector toggles styling and Correction column header (→ avg / → target), every ac-correction-{id} cell shows '—' with all 16 channels at -∞ (SAFETY-FIRST invariant), ac-correctable-count shows '0 ch', ac-apply-match is disabled with label '✦ Apply Match (0)', Undo button correctly absent before apply, Apply Match button hidden during rerun and reappears after, CSV download fires with auto-capture-phy-*.csv naming, readonly mode disables ac-start (Apply Match button only renders when results exist; in readonly the sweep cannot even start, which is a stricter safety guarantee). Regression check: pn-type-pink/white/sweep, out-out_phy-0-pan-visual (Channels tab), meters-popout, open-snapshot all still present. Code inspection of computeCorrection() and the appliedUndo conditional rendering confirms math correctness and Undo button gating.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AutoCaptureSequence.jsx is 489 lines — still readable but approaching the 700-line split threshold; consider extracting <LevelMatchControls/> and <ResultsTable/> in a future iteration to keep the file under control.",
+    "applyLevelMatch() reads `out.gain` from state.outputs at click time which is correct, but mixing updateOutput (shallow) with updateOutputDeep (used elsewhere in the file) inside the same module is a minor inconsistency — consider standardising on updateOutputDeep for gain changes too so consumers can rely on a single mutation entry-point.",
+    "computeCorrection() is a pure helper but is re-defined at module top level (good). The clamp constants (MATCH_CLAMP_DB=12, MATCH_FLOOR_DB=-55, MATCH_DEADBAND_DB=0.3) are not exported — if the same thresholds are ever needed in tests or a settings panel, exporting them would help.",
+    "In readonly mode the Apply Match button never renders (because the sweep can't run), so the readonly invariant for that specific button is implicitly satisfied but not directly testable end-to-end. Acceptable, but worth a code comment noting the assumption.",
+    "Minor: no unit test file accompanies the new pure helper computeCorrection — adding a quick Jest test would lock in the clamp/floor/deadband behaviour against future regressions."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (frontend-only request)", "frontend": "100%" },
+  "test_credentials": "N/A",
+  "seed_data_creation": "None — used default 16 phy outputs already in the store.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "AutoCaptureSequence modal lives in MetersView (data-testid 'open-auto-capture'). Range sliders (ac-dwell, ac-settle, ac-level) need JS-dispatch input events to change (page.fill doesn't trigger React onChange on range inputs); the test harness uses a setRange helper that calls native setter + dispatches 'input'+'change'. The sweep wall-time is ~(dwell+settle+~40ms loop)*channels — for 16 phy channels at dwell=500/settle=100 it completes within ~12s; use a 20s timeout when waiting for ac-apply-match. Pan-visual lives only on the Channels tab, not Meters. AVG button bg is rgb(255,214,10) = #FFD60A when active, transparent (rgba(0,0,0,0)) when inactive.",
+  "rca of the issue": "No bugs found. All assertions from the iteration-15 review request matched expected behaviour."
+}
