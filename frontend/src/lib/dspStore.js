@@ -1,6 +1,6 @@
 // Global DSP state via React context + reducer.
 // Persists to localStorage and keeps the audio engine in sync.
-import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { buildInitialState, VERSIONS } from "./dspDefaults";
 import { audioEngine } from "./audioEngine";
 
@@ -97,6 +97,7 @@ const reducer = (state, action) => {
 export const DspProvider = ({ children }) => {
   const initial = useMemo(() => loadFromStorage() || buildInitialState("v16"), []);
   const [state, dispatch] = useReducer(reducer, initial);
+  const [readOnly, setReadOnly] = useState(false); // UI-only "showcase / lock" mode
   const builtForVersionRef = useRef(null);
 
   // Persist
@@ -134,6 +135,9 @@ export const DspProvider = ({ children }) => {
     () => ({
       state,
       dispatch,
+      readOnly,
+      setReadOnly,
+      toggleReadOnly: () => setReadOnly((v) => !v),
       // helpers
       updateOutput: (id, patch) => dispatch({ type: "updateOutput", id, patch }),
       updateOutputDeep: (id, fn) => dispatch({ type: "updateOutputDeep", id, fn }),
@@ -146,7 +150,7 @@ export const DspProvider = ({ children }) => {
       setAllPinkNoise: (enabled, level) => dispatch({ type: "setAllPinkNoise", enabled, level }),
       loadPresetState: (s) => dispatch({ type: "loadPreset", state: s }),
     }),
-    [state],
+    [state, readOnly],
   );
 
   return <DspContext.Provider value={api}>{children}</DspContext.Provider>;

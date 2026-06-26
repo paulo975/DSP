@@ -4,7 +4,7 @@ import { VERSIONS } from "@/lib/dspDefaults";
 import { audioEngine } from "@/lib/audioEngine";
 
 const TopBar = ({ tab, setTab, onOpenPresets }) => {
-  const { state, setVersion, setMaster, setAllPinkNoise } = useDsp();
+  const { state, setVersion, setMaster, setAllPinkNoise, readOnly, toggleReadOnly } = useDsp();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState(null);
   const [playing, setPlaying] = useState(false);
@@ -66,14 +66,33 @@ const TopBar = ({ tab, setTab, onOpenPresets }) => {
           </div>
         </div>
 
+        {/* Lock / Read-Only toggle */}
+        <div className="flex items-center px-3 border-r border-neutral-800">
+          <button
+            onClick={toggleReadOnly}
+            data-testid="readonly-toggle"
+            title={readOnly ? "Currently LOCKED — click to unlock for editing" : "Lock app to prevent accidental edits (showcase mode)"}
+            className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border font-bold transition-colors flex items-center gap-1.5"
+            style={{
+              background: readOnly ? "#FFD60A" : "transparent",
+              color: readOnly ? "#000" : "#999",
+              borderColor: readOnly ? "#FFD60A" : "#2A2A2A",
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{readOnly ? "🔒" : "🔓"}</span>
+            {readOnly ? "LOCKED" : "EDITABLE"}
+          </button>
+        </div>
+
         {/* Version selector */}
         <div className="flex items-center gap-1 px-4 border-r border-neutral-800">
           {Object.values(VERSIONS).map((v) => (
             <button
               key={v.id}
               onClick={() => handleVersionSelect(v.id)}
+              disabled={readOnly}
               data-testid={`version-${v.id}`}
-              className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border"
+              className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border disabled:opacity-40 disabled:cursor-not-allowed"
               style={{
                 background: state.version === v.id ? "#FF6B00" : "transparent",
                 color: state.version === v.id ? "#000" : "#999",
@@ -146,8 +165,9 @@ const TopBar = ({ tab, setTab, onOpenPresets }) => {
           </span>
           <button
             onClick={() => setAllPinkNoise(!pinkAllOn, pinkLevel)}
+            disabled={readOnly}
             data-testid="pn-master-toggle"
-            className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border font-bold transition-colors"
+            className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               background: pinkAllOn ? "#FF7AC6" : "transparent",
               color: pinkAllOn ? "#000" : "#888",
@@ -162,11 +182,12 @@ const TopBar = ({ tab, setTab, onOpenPresets }) => {
             max={0}
             step={0.5}
             value={pinkLevel}
+            disabled={readOnly}
             onChange={(e) => {
               const v = Number(e.target.value);
               setAllPinkNoise(pinkAllOn || undefined, v);
             }}
-            className="w-20 accent-[#FF7AC6]"
+            className="w-20 accent-[#FF7AC6] disabled:opacity-40 disabled:cursor-not-allowed"
             data-testid="pn-master-level"
           />
           <span className="text-[10px] font-mono font-bold text-white w-12 text-right" data-testid="pn-master-level-value">
@@ -183,8 +204,9 @@ const TopBar = ({ tab, setTab, onOpenPresets }) => {
             max={6}
             step={0.1}
             value={state.masterGain}
+            disabled={readOnly}
             onChange={(e) => setMaster({ masterGain: Number(e.target.value) })}
-            className="w-28 accent-[#FF6B00]"
+            className="w-28 accent-[#FF6B00] disabled:opacity-40 disabled:cursor-not-allowed"
             data-testid="master-gain"
           />
           <span className="text-xs font-mono font-bold text-white w-14 text-right" data-testid="master-gain-value">
@@ -192,8 +214,9 @@ const TopBar = ({ tab, setTab, onOpenPresets }) => {
           </span>
           <button
             onClick={() => setMaster({ masterMute: !state.masterMute })}
+            disabled={readOnly}
             data-testid="master-mute"
-            className="text-[10px] font-mono font-bold uppercase tracking-[0.18em] px-3 py-1.5 border"
+            className="text-[10px] font-mono font-bold uppercase tracking-[0.18em] px-3 py-1.5 border disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               background: state.masterMute ? "#FF3B30" : "transparent",
               color: state.masterMute ? "#000" : "#999",

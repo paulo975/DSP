@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useDsp, listPresets, savePreset, deletePreset, exportPresetJson, importPresetJson } from "@/lib/dspStore";
 
 const PresetManager = ({ onClose }) => {
-  const { state, loadPresetState } = useDsp();
+  const { state, loadPresetState, readOnly } = useDsp();
   const [presets, setPresets] = useState([]);
   const [name, setName] = useState("");
   const [status, setStatus] = useState(null);
@@ -82,14 +82,18 @@ const PresetManager = ({ onClose }) => {
             />
             <button
               onClick={handleSave}
+              disabled={readOnly}
               data-testid="preset-save-btn"
-              className="px-4 py-2 bg-[#FF6B00] text-black text-xs font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#FF8533]"
+              className="px-4 py-2 bg-[#FF6B00] text-black text-xs font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#FF8533] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Save Current
             </button>
-            <label className="px-4 py-2 border border-neutral-700 text-neutral-300 text-xs font-mono uppercase tracking-[0.18em] cursor-pointer hover:border-[#FF6B00] hover:text-white" data-testid="preset-import-btn">
+            <label
+              className={`px-4 py-2 border text-xs font-mono uppercase tracking-[0.18em] ${readOnly ? "border-neutral-800 text-neutral-600 opacity-40 cursor-not-allowed" : "border-neutral-700 text-neutral-300 cursor-pointer hover:border-[#FF6B00] hover:text-white"}`}
+              data-testid="preset-import-btn"
+            >
               Import JSON
-              <input type="file" accept="application/json" className="hidden" onChange={handleImport} />
+              <input type="file" accept="application/json" className="hidden" disabled={readOnly} onChange={handleImport} />
             </label>
           </div>
 
@@ -133,8 +137,9 @@ const PresetManager = ({ onClose }) => {
                     </button>
                     <button
                       onClick={() => handleDelete(p.name)}
+                      disabled={readOnly}
                       data-testid={`preset-delete-${p.name}`}
-                      className="px-2 py-1 border border-neutral-800 text-[#FF3B30] hover:bg-[#FF3B30] hover:text-black text-[10px] uppercase tracking-[0.15em]"
+                      className="px-2 py-1 border border-neutral-800 text-[#FF3B30] hover:bg-[#FF3B30] hover:text-black text-[10px] uppercase tracking-[0.15em] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Del
                     </button>

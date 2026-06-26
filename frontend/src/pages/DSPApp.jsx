@@ -11,21 +11,24 @@ import SelectedChannelPanel from "@/components/dsp/SelectedChannelPanel";
 import ChannelPills from "@/components/dsp/ChannelPills";
 
 const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBank }) => {
-  const { state } = useDsp();
+  const { state, readOnly } = useDsp();
   const phyOuts = state.outputs.filter((o) => o.kind === "out_phy");
   const virtOuts = state.outputs.filter((o) => o.kind === "out_virt");
 
   return (
     <div className="h-full flex flex-col bg-[#0A0A0A]" data-testid="channels-view">
-      {/* Yamaha-style selected channel hero panel */}
-      <SelectedChannelPanel
-        outputId={selectedId}
-        onOpenEq={onOpenEq}
-        onOpenComp={onOpenComp}
-        onClose={() => onSelect(null)}
-      />
+      {/* Yamaha-style selected channel hero panel — wrapped in inert when read-only.
+          We keep the panel visible/selectable but make its inputs non-interactive. */}
+      <div inert={readOnly ? "" : undefined} data-testid="channels-edit-region">
+        <SelectedChannelPanel
+          outputId={selectedId}
+          onOpenEq={onOpenEq}
+          onOpenComp={onOpenComp}
+          onClose={() => onSelect(null)}
+        />
+      </div>
 
-      {/* Channel selector pills + bank tabs */}
+      {/* Channel selector pills + bank tabs (kept interactive — purely navigation) */}
       <ChannelPills
         selectedId={selectedId}
         onSelect={onSelect}
@@ -33,8 +36,8 @@ const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBan
         setBank={setBank}
       />
 
-      {/* Channel strips (overview / bank) */}
-      <div className="overflow-x-auto grow">
+      {/* Channel strips below — also inert during read-only */}
+      <div inert={readOnly ? "" : undefined} className="overflow-x-auto grow">
         <div className="flex h-full">
           <div className="flex flex-col border-r border-[#FF6B00]/30">
             <div className="px-3 py-1.5 bg-[#FF6B00] text-black text-[10px] font-mono font-bold uppercase tracking-[0.2em]">
@@ -83,10 +86,20 @@ const DSPShell = () => {
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [bank, setBank] = useState("phy");
+  const { readOnly } = useDsp();
 
   return (
     <div className="h-screen flex flex-col bg-[#0A0A0A] text-white" data-testid="dsp-shell">
       <TopBar tab={tab} setTab={setTab} onOpenPresets={() => setPresetsOpen(true)} />
+      {readOnly && (
+        <div
+          className="px-4 py-1 text-center text-[10px] font-mono uppercase tracking-[0.2em] font-bold border-b"
+          style={{ background: "#FFD60A", color: "#000", borderBottomColor: "#a08800" }}
+          data-testid="readonly-banner"
+        >
+          🔒 Read-Only / Showcase Mode — edits are locked. Click the LOCKED button in the top bar to unlock.
+        </div>
+      )}
       <main className="grow overflow-hidden">
         {tab === "channels" && (
           <ChannelsView
@@ -99,14 +112,18 @@ const DSPShell = () => {
           />
         )}
         {tab === "meters" && <MetersView />}
-        {tab === "matrix" && <MatrixRouter />}
+        {tab === "matrix" && (
+          <div inert={readOnly ? "" : undefined} className="h-full">
+            <MatrixRouter />
+          </div>
+        )}
       </main>
       <footer className="border-t border-neutral-800 px-4 py-1.5 flex justify-between items-center bg-black">
         <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600">
           AudioSystem DSP Web · low-latency engine (Web Audio API · interactive)
         </span>
         <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-600" data-testid="footer-state-saved">
-          State auto-saved to local storage
+          {readOnly ? "🔒 Read-Only — state preserved" : "State auto-saved to local storage"}
         </span>
       </footer>
 
