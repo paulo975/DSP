@@ -26,6 +26,13 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — One-Click Calibration)
+- ✅ **One-Click Calibration**: a single yellow button in MetersView (`open-one-click`) chains the full installer pipeline in ~30 s — (1) sweep all PHY outputs at −18 dB, (2) Auto Level Match to AVG, (3) save snapshot to `dsp_snapshots_v1` localStorage, (4) export CSV.
+- ✅ Pipeline status banner above the modal shows the active step (sweep / matching / snapshotting / done / cancelled) with colour coding.
+- ✅ Calibration Summary card (yellow border) displays swept count, gains-adjusted count, snapshot name, CSV filename, plus inline **Undo Calibration** if any gains were touched.
+- ✅ Two-layer safety guard: `start()` returns a typed sentinel `{cancelled, count}` and the orchestrator halts on `!sweepRes || cancelled || count===0` — read-only mode now correctly stops the pipeline with no side effects (verified iteration 17).
+- ✅ `ac-close` button disabled during the matching/snapshotting steps to prevent partial state.
+
 ## What's Been Implemented (2026-02-13 — Auto Level Match)
 - ✅ **Auto Level Match** extends Auto-Capture: after a sweep, the modal computes per-channel corrective gain to match either the sweep average (AVG mode) or the dialled-in target dB (TARGET mode).
 - ✅ Safety guard rails: corrections clamped to ±12 dB per channel, channels with peak ≤ −55 dB (silent/dead) are skipped, ±0.3 dB dead-band ignores micro-corrections.
@@ -77,6 +84,8 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 13 (2026-02-13)**: 9/9 passed — PINK/WHT/SWP type selector + analog-style Pan visual + Meters pop-out via `#popout=meters` (no AudioContext in popout, BroadcastChannel meter sync verified). Report: `/app/test_reports/iteration_13.json`.
 - **Iteration 14 (2026-02-13)**: 100% passed — Auto-Capture Sequence (sweep 16/32 outputs with pink noise, peak-dB report, CSV export, mid-sweep cancel preserves channel state, read-only disables start). Report: `/app/test_reports/iteration_14.json`.
 - **Iteration 15 (2026-02-13)**: 100% passed — Auto Level Match (post-sweep corrective gain, AVG/TARGET ref selector, ±12 dB clamp, silent-channel filter, one-click Apply + Undo). Report: `/app/test_reports/iteration_15.json`.
+- **Iteration 16 (2026-02-13)**: 10/11 — One-Click Calibration pipeline (sweep → match → snapshot → CSV). 1 HIGH-priority safety bug found: read-only mode didn't halt the pipeline. Report: `/app/test_reports/iteration_16.json`.
+- **Iteration 17 (2026-02-13)**: 100% passed — Fix verified for the read-only safety bug (typed sentinel `{cancelled, count}` from `start()` + defense-in-depth orchestrator guard `!sweepRes || cancelled || count===0`). Report: `/app/test_reports/iteration_17.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
