@@ -4,7 +4,7 @@ import { audioEngine } from "@/lib/audioEngine";
 import Meter from "./Meter";
 import SnapshotPanel from "./SnapshotPanel";
 import AutoCaptureSequence from "./AutoCaptureSequence";
-import { CALIBRATION_PROFILES, loadProfileId, saveProfileId } from "@/lib/calibrationProfiles";
+import { CALIBRATION_PROFILES, loadProfileId, saveProfileId, getProfileById, detectProfile } from "@/lib/calibrationProfiles";
 
 const dbFromLevel = (lvl) => {
   if (lvl <= 0) return -Infinity;
@@ -116,10 +116,16 @@ const MetersView = () => {
   const [autoCaptureOpen, setAutoCaptureOpen] = React.useState(false);
   const [oneClickOpen, setOneClickOpen] = React.useState(false);
   const [profileId, setProfileIdState] = React.useState(loadProfileId);
+  const [detection, setDetection] = React.useState(null); // { profileId, confidence, reasons, summary }
 
   const pickProfile = (id) => {
     setProfileIdState(id);
     saveProfileId(id);
+    setDetection(null); // dismiss any pending recommendation once the user picks
+  };
+
+  const runDetection = () => {
+    setDetection(detectProfile(state));
   };
 
   const inPhy = state.inputs.filter((i) => i.kind === "in_phy");
@@ -204,7 +210,84 @@ const MetersView = () => {
         <span className="text-[10px] font-mono text-neutral-500 ml-2" data-testid="cal-profile-active-desc">
           {(CALIBRATION_PROFILES.find((p) => p.id === profileId) || CALIBRATION_PROFILES[1]).description}
         </span>
+        <button
+          onClick={runDetection}
+          data-testid="cal-detect"
+          title="Analyse the current routing/delay/naming and suggest the best-fitting profile"
+          className="ml-auto px-3 py-1.5 border border-[#00FF41] text-[#00FF41] text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#00FF41] hover:text-black transition-colors"
+        >
+          🔍 Detect
+        </button>
       </div>
+
+      {/* Detection result banner */}
+      {detection && (() => {
+        const suggested = getProfileById(detection.profileId);
+        const conf = detection.confidence;
+        const confColor = conf === "high" ? "#00FF41" : conf === "medium" ? "#FFD60A" : "#FFB800";
+        const isAlreadyActive = detection.profileId === profileId;
+        return (
+          <div
+            className="px-4 py-3 border-b border-neutral-800"
+            style={{ background: `${suggested.color}10` }}
+            data-testid="cal-detect-banner"
+          >
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <span className="text-base leading-none" style={{ color: suggested.color }}>{suggested.icon}</span>
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-[0.18em]">
+                    <span className="text-neutral-500">Suggested →</span>{" "}
+                    <span style={{ color: suggested.color }} data-testid="cal-detect-profile">{suggested.name}</span>{" "}
+                    <span
+                      className="ml-2 px-1.5 py-0.5 text-[9px] font-bold"
+                      style={{ background: confColor, color: "#000" }}
+                      data-testid="cal-detect-confidence"
+                    >
+                      {conf.toUpperCase()} CONFIDENCE
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-neutral-400 mt-1" data-testid="cal-detect-summary">
+                    {detection.summary}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isAlreadyActive ? (
+                  <button
+                    onClick={() => pickProfile(detection.profileId)}
+                    data-testid="cal-detect-apply"
+                    className="px-3 py-1.5 font-mono uppercase tracking-[0.18em] text-[10px] font-bold"
+                    style={{ background: suggested.color, color: "#000" }}
+                  >
+                    ✓ Use {suggested.name}
+                  </button>
+                ) : (
+                  <span
+                    className="px-3 py-1.5 font-mono uppercase tracking-[0.18em] text-[10px] font-bold border"
+                    style={{ borderColor: suggested.color, color: suggested.color }}
+                    data-testid="cal-detect-already-active"
+                  >
+                    Already Active
+                  </span>
+                )}
+                <button
+                  onClick={() => setDetection(null)}
+                  data-testid="cal-detect-dismiss"
+                  className="px-3 py-1.5 border border-neutral-700 text-neutral-400 text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:border-neutral-500 hover:text-neutral-200"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+            {detection.reasons.length > 0 && (
+              <ul className="mt-2 text-[10px] font-mono text-neutral-500 pl-4 list-disc space-y-0.5" data-testid="cal-detect-reasons">
+                {detection.reasons.map((r) => <li key={r}>{r}</li>)}
+              </ul>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Inputs section */}
       <SectionHeader label="Inputs" count={inPhy.length + inVirt.length} color="#00B7FF" />

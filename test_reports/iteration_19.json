@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 19 (Profile Auto-Detector) tested end-to-end via Playwright on the preview URL. 7 of 8 steps PASS fully; step 6 (routing-density driven confidence change) passes for profile switch + active-count but fails the 'confidence ≥ MEDIUM' sub-assertion because of a heuristic tie at all-zero delays.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "cal-detect routing-density branch (Step 6)",
+        "issue": "After routing IN 1 → OUT 3..OUT 8 (8 active outputs total, all delays=0), detectProfile() returns {profileId:'car-audio', confidence:'low', summary:'8 active · avg delay 0.0 ms · 0 crossover(s)'}. The recommendation correctly moves AWAY from Home Studio (✓), and active count rises to 8 (✓), but the spec-expected 'at least MEDIUM' confidence is not met — it is LOW. Root cause: home-studio still gets +2 from the 'Very low delay (avg <2ms, max <5ms)' bonus, tying car-audio's +2 (5–8 active band). margin=0 → low. With all-zero default delays, no realistic routing change can push margin ≥2 unless crossovers/keywords are also introduced, capping confidence at LOW.",
+        "affected_selectors": ["cal-detect-confidence", "cal-detect-profile", "cal-detect-summary"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_19.json"],
+  "action_items": [
+    "Optional heuristic re-tune in /app/frontend/src/lib/calibrationProfiles.js detectProfile(): when activeCount > 4, the 'very low delay' bonus should not apply to home-studio (or should be capped to a smaller increment like +1). Suggested change: gate the home-studio low-delay bonus behind 'activeCount <= 4', or add a +1 'live-band tie-breaker' for activeCount >=6 to break the 2-2 tie cleanly. This will let step 6's 8-output scenario reach MEDIUM confidence.",
+    "Routing-matrix cell testid format note: review-request mentioned 'matrix-cell-{outId}-{inId}' but the app uses 'route-{inId}-{outId}' (MatrixRouter.jsx:99). Not a bug — just a doc/spec drift to record."
+  ],
+  "critical_code_review_comments": [
+    "calibrationProfiles.js detectProfile: when all delays are zero (the default zustand state), home-studio scores +2 on the 'low delay' branch regardless of channel count, which can mask larger systems. Consider conditional weighting.",
+    "MetersView.jsx is ~330 lines and combines MeterColumn, MeterPeakDb, ScaleColumn, SectionHeader, and the detection banner inline. Still under the 700-line guideline, but the detection banner (IIFE inside JSX at lines 224-290) would read better extracted into its own <CalDetectBanner detection={...} activeProfileId={...} onApply onDismiss/> component.",
+    "AudioContext autoplay warnings spam the console on load (one per Meter mount). Acceptable browser-policy behaviour, but emitting >100 identical warnings indicates the audio engine attempts resume() inside an effect that runs per-meter. Consider gating audioEngine.ensureContext() to a single user-gesture handler."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only test)", "frontend": "87.5% (7/8 steps fully pass; step 6 partial — profile/count assertions pass, confidence sub-assertion fails)"},
+  "seed_data_creation": "None. Test starts by clearing localStorage and uses default zustand state (out_phy_0←in_phy_0, out_phy_1←in_phy_1).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend uses route-{inputId}-{outputId} testids (NOT matrix-cell-*). Default app state yields 2 routed outputs with zero delays → Home Studio HIGH (margin=5). The detectProfile() function gives home-studio +2 for low delay unconditionally, which can prevent confidence ≥ MEDIUM in low-delay larger setups. cal-profile-* persistence via localStorage key 'dsp_calibration_profile_v1' works across reload. cal-detect button is at right-end of cal-profile-bar with green #00FF41 border. Banner appears below the bar with cal-detect-banner / -profile / -confidence / -summary / -reasons / -apply / -already-active / -dismiss testids — all confirmed present and rendering correctly. Confidence pill text is uppercase '<LEVEL> CONFIDENCE'. Pan-visual testid uses hyphen between 'phy' and idx: out-out_phy-0-pan-visual.",
+  "rca_of_the_issue": "Step 6 fail RCA — detectProfile in /app/frontend/src/lib/calibrationProfiles.js scores: activeCount in [5,8] → car-audio +2, live-band +1; avgDelay<2 && maxDelay<5 → home-studio +2; xoverCount<2 → 0. Sorted desc: car-audio(2), home-studio(2), live-band(1), house-of-worship(0). margin = 2-2 = 0 → confidence='low'. To reach MEDIUM (margin>=2) the home-studio low-delay bonus must be suppressed when activeCount > 4, OR the user must also enable HPF/LPF crossovers on ≥2 outputs (car-audio +1) plus naming hints. Suggested 1-line fix: change the line `if (avgDelay < 2 && maxDelay < 5) { scores['home-studio'] += 2; ... }` to gate with `&& activeCount <= 4` so the bonus only applies when small-system signal is already present. Reproduction: clear localStorage → route in_phy_0 to out_phy_2..out_phy_7 in Routing Matrix tab → back to Meters → click 🔍 Detect → observe LOW CONFIDENCE Car Audio instead of MEDIUM."
+}
