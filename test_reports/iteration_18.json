@@ -1,0 +1,21 @@
+{
+  "summary": "Frontend-only testing of Iteration 18 (Calibration Profiles). All 9 acceptance criteria validated end-to-end: cal-profile-bar renders with 4 profile buttons (Live Band ♪, Car Audio ▱, Home Studio ○, House of Worship ✦), default active profile is car-audio (orange #FF6B00 fill, description 'Reflective cabin — extra settle for low-end build-up'), clicking house-of-worship updates active state to yellow #FFD60A and description to 'Reverberant space, distributed speakers — long settle', selection persists in localStorage key 'dsp_calibration_profile_v1' and survives page.reload(). One-Click flow with Live Band profile correctly: (a) header shows '⚡ One-Click Calibration · ♪ Live Band', (b) oc-profile-desc shows 'Touring / stage PA · level -12 dB · dwell 1200 ms · tolerance ±1.5 dB', (c) ac-level=-12, ac-dwell=1200, ac-settle=200 (profile defaults seeded into sliders), (d) full pipeline completed in ~20s and oc-sum-snapshot shows 'One-Click (Live Band) 6/26/2026, 4:47:28 PM' (profile name embedded). Auto-Capture modal (opened independently with home-studio profile selected) keeps hard-coded defaults level=-18 dB, dwell=1500, settle=300 (oc-profile-desc not rendered, since oneClick=false). Regression: pn-type-pink/white/sweep, meters-popout, out-out_phy-0-pan-visual, open-auto-capture, tab navigation all working. No console errors. Zero issues found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Note: AutoCaptureSequence.jsx default dwellMs=1500 (line 66) coincidentally matches the home-studio profile's dwell, which can be slightly confusing during debugging — consider documenting that the no-profile defaults are intentional baseline (level=-18, dwell=1500, settle=300), not leakage from any profile.",
+    "AutoCaptureSequence.jsx is now 634 lines — approaching the 700-line guideline. Consider splitting the One-Click pipeline orchestrator (ocPhase / ocSummary / runOneClick) into a separate hook (e.g. useOneClickPipeline) to keep components focused as more profile parameters are added."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "None — localStorage key dsp_calibration_profile_v1 written to 'house-of-worship' then 'live-band' then 'home-studio' during testing. Not cleared at end (acceptable for a UI-only persistence test).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 18 Calibration Profiles feature is fully functional. Profiles drive One-Click via profileId prop to AutoCaptureSequence (seeded into useState initial values for scope/levelDb/dwellMs/settleMs/matchMode/deadBandDb). MetersView.jsx persists selection via saveProfileId in localStorage key 'dsp_calibration_profile_v1'. Auto-Capture modal is NOT passed profileId — it stays on hard-coded defaults. Snapshot name in oc-sum-snapshot embeds '(ProfileName)' when profile is set. Full One-Click run with Live Band takes ~20s (16 phy channels × 1200ms dwell + overhead); use 40-60s wait timeout. Avoid house-of-worship for One-Click runtime tests (scope=all → 32 channels × 2500ms = >80s)."
+}

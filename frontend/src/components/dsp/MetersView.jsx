@@ -4,6 +4,7 @@ import { audioEngine } from "@/lib/audioEngine";
 import Meter from "./Meter";
 import SnapshotPanel from "./SnapshotPanel";
 import AutoCaptureSequence from "./AutoCaptureSequence";
+import { CALIBRATION_PROFILES, loadProfileId, saveProfileId } from "@/lib/calibrationProfiles";
 
 const dbFromLevel = (lvl) => {
   if (lvl <= 0) return -Infinity;
@@ -114,6 +115,12 @@ const MetersView = () => {
   const [snapshotOpen, setSnapshotOpen] = React.useState(false);
   const [autoCaptureOpen, setAutoCaptureOpen] = React.useState(false);
   const [oneClickOpen, setOneClickOpen] = React.useState(false);
+  const [profileId, setProfileIdState] = React.useState(loadProfileId);
+
+  const pickProfile = (id) => {
+    setProfileIdState(id);
+    saveProfileId(id);
+  };
 
   const inPhy = state.inputs.filter((i) => i.kind === "in_phy");
   const inVirt = state.inputs.filter((i) => i.kind === "in_virt");
@@ -169,6 +176,36 @@ const MetersView = () => {
         </div>
       </div>
 
+      {/* Calibration Profile selector — feeds One-Click & Auto-Capture defaults */}
+      <div className="px-4 py-2 border-b border-neutral-800 bg-[#0d0d0d] flex items-center gap-3 flex-wrap" data-testid="cal-profile-bar">
+        <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-neutral-500">Calibration Profile</span>
+        <div className="flex gap-1" data-testid="cal-profile-group">
+          {CALIBRATION_PROFILES.map((p) => {
+            const isActive = p.id === profileId;
+            return (
+              <button
+                key={p.id}
+                onClick={() => pickProfile(p.id)}
+                data-testid={`cal-profile-${p.id}`}
+                title={p.description}
+                className="text-[10px] font-mono uppercase tracking-[0.15em] px-3 py-1.5 border font-bold transition-colors flex items-center gap-1.5"
+                style={{
+                  background: isActive ? p.color : "transparent",
+                  color: isActive ? "#000" : p.color,
+                  borderColor: isActive ? p.color : "#2A2A2A",
+                }}
+              >
+                <span className="text-base leading-none">{p.icon}</span>
+                {p.name}
+              </button>
+            );
+          })}
+        </div>
+        <span className="text-[10px] font-mono text-neutral-500 ml-2" data-testid="cal-profile-active-desc">
+          {(CALIBRATION_PROFILES.find((p) => p.id === profileId) || CALIBRATION_PROFILES[1]).description}
+        </span>
+      </div>
+
       {/* Inputs section */}
       <SectionHeader label="Inputs" count={inPhy.length + inVirt.length} color="#00B7FF" />
       <div className="flex bg-[#080808]">
@@ -204,7 +241,7 @@ const MetersView = () => {
 
       {snapshotOpen && <SnapshotPanel onClose={() => setSnapshotOpen(false)} />}
       {autoCaptureOpen && <AutoCaptureSequence onClose={() => setAutoCaptureOpen(false)} />}
-      {oneClickOpen && <AutoCaptureSequence onClose={() => setOneClickOpen(false)} oneClick />}
+      {oneClickOpen && <AutoCaptureSequence onClose={() => setOneClickOpen(false)} oneClick profileId={profileId} />}
     </div>
   );
 };

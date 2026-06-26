@@ -11,6 +11,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useDsp } from "@/lib/dspStore";
 import { audioEngine } from "@/lib/audioEngine";
 import { captureCurrentSnapshot, loadSnapshots, saveSnapshotsList } from "./SnapshotPanel";
+import { getProfileById } from "@/lib/calibrationProfiles";
 
 const SCOPE_OPTIONS = [
   { id: "phy", label: "Physical Only" },
@@ -40,29 +41,31 @@ const downloadCsv = (filename, rows) => {
 // wiring error or a dead channel can't push faders to the rails.
 const MATCH_CLAMP_DB = 12; // maximum |correction| per channel
 const MATCH_FLOOR_DB = -55; // peaks at or below this are treated as "silent" → no correction
-const MATCH_DEADBAND_DB = 0.3; // ignore micro-corrections (audibly inaudible)
+const MATCH_DEADBAND_DB_DEFAULT = 0.3; // ignore micro-corrections (audibly inaudible)
 
 // Compute per-channel correction (dB) needed to bring its measured peak up to
 // the chosen reference (average of the sweep or the target level used during
-// capture). Returns 0 for channels considered silent/dead.
-const computeCorrection = (row, refDb) => {
+// capture). Returns 0 for channels considered silent/dead. The dead-band can be
+// overridden per calibration profile (e.g. House of Worship uses ±2 dB).
+const computeCorrection = (row, refDb, deadBandDb = MATCH_DEADBAND_DB_DEFAULT) => {
   if (!Number.isFinite(row.peakDb) || row.peakDb <= MATCH_FLOOR_DB) return 0;
   const raw = refDb - row.peakDb;
-  if (Math.abs(raw) < MATCH_DEADBAND_DB) return 0;
+  if (Math.abs(raw) < deadBandDb) return 0;
   return Math.max(-MATCH_CLAMP_DB, Math.min(MATCH_CLAMP_DB, raw));
 };
 
 const clampGain = (g) => Math.max(-60, Math.min(12, g));
 
-const AutoCaptureSequence = ({ onClose, oneClick = false }) => {
+const AutoCaptureSequence = ({ onClose, oneClick = false, profileId = null }) => {
   const { state, updateOutput, updateOutputDeep, readOnly } = useDsp();
-  // In One-Click mode we override defaults with the "sensible installer" preset
-  // and auto-fire Start → Apply Match → Snapshot → CSV. The user just watches.
-  const [scope, setScope] = useState("phy");
-  const [levelDb, setLevelDb] = useState(oneClick ? -18 : -18);
-  const [dwellMs, setDwellMs] = useState(oneClick ? 1500 : 1500);
-  const [settleMs, setSettleMs] = useState(oneClick ? 300 : 300);
-  const [matchMode, setMatchMode] = useState("avg");
+  const profile = profileId ? getProfileById(profileId) : null;
+  // When a profile is supplied, its parameters override the defaults so the
+  // user can run One-Click without touching any slider.
+  const [scope, setScope] = useState(profile?.scope ?? "phy");
+  const [levelDb, setLevelDb] = useState(profile?.levelDb ?? -18);
+  const [dwellMs, setDwellMs] = useState(profile?.dwellMs ?? 1500);
+  const [settleMs, setSettleMs] = useState(profile?.settleMs ?? 300);
+  const [matchMode, setMatchMode] = useState(profile?.matchMode ?? "avg");
   const [appliedUndo, setAppliedUndo] = useState(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ idx: 0, total: 0, currentName: "" });
@@ -189,18 +192,19 @@ const AutoCaptureSequence = ({ onClose, oneClick = false }) => {
   // Reference level for Auto Level Match: average of the sweep, or the target
   // dB the user dialled in at capture time.
   const refDb = matchMode === "target" ? levelDb : avg;
+  const deadBandDb = profile?.deadBandDb ?? MATCH_DEADBAND_DB_DEFAULT;
 
   // How many channels would actually move if Apply is pressed (i.e. survive
   // the silent/dead-band/clamp filter). Used to gate the Apply button.
   const correctableCount = (avg == null)
     ? 0
-    : results.reduce((n, r) => n + (computeCorrection(r, refDb) !== 0 ? 1 : 0), 0);
+    : results.reduce((n, r) => n + (computeCorrection(r, refDb, deadBandDb) !== 0 ? 1 : 0), 0);
 
   const applyLevelMatch = () => {
     if (readOnly || avg == null) return { applied: 0 };
     const changes = [];
     results.forEach((r) => {
-      const correction = computeCorrection(r, refDb);
+      const correction = computeCorrection(r, refDb, deadBandDb);
       if (correction === 0) return;
       const out = state.outputs.find((o) => o.id === r.id);
       if (!out) return;
@@ -254,7 +258,7 @@ const AutoCaptureSequence = ({ onClose, oneClick = false }) => {
     // 3. Snapshot to the saved-snapshots store
     setOcPhase("snapshotting");
     await sleep(120);
-    const snapName = `One-Click ${new Date().toLocaleString()}`;
+    const snapName = `One-Click${profile ? ` (${profile.name})` : ""} ${new Date().toLocaleString()}`;
     const rows = captureCurrentSnapshot(state.inputs, state.outputs);
     const snap = {
       id: `one-click-${Date.now()}`,
@@ -295,13 +299,18 @@ const AutoCaptureSequence = ({ onClose, oneClick = false }) => {
           <div>
             <div
               className="text-[10px] font-mono uppercase tracking-[0.2em]"
-              style={{ color: oneClick ? "#FFD60A" : "#00B7FF" }}
+              style={{ color: profile?.color || (oneClick ? "#FFD60A" : "#00B7FF") }}
             >
-              {oneClick ? "⚡ One-Click Calibration" : "Auto-Capture Sequence"}
+              {oneClick ? `⚡ One-Click Calibration${profile ? ` · ${profile.icon} ${profile.name}` : ""}` : "Auto-Capture Sequence"}
             </div>
             <div className="text-lg font-semibold text-white">
               {oneClick ? "Sweep → Match → Snapshot → CSV" : "Sweep · Measure · Export"}
             </div>
+            {profile && oneClick && (
+              <div className="text-[10px] font-mono text-neutral-500 mt-0.5" data-testid="oc-profile-desc">
+                {profile.description} · level {profile.levelDb} dB · dwell {profile.dwellMs} ms · tolerance ±{profile.deadBandDb} dB
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -573,7 +582,7 @@ const AutoCaptureSequence = ({ onClose, oneClick = false }) => {
                   const delta = avg != null ? r.peakDb - avg : 0;
                   const sevPeak = r.peakDb > -2 ? "#FF3B30" : r.peakDb > -6 ? "#FFB800" : r.peakDb > -50 ? "#00FF41" : "#666";
                   const deltaColor = Math.abs(delta) < 1 ? "#888" : Math.abs(delta) < 3 ? "#FFB800" : "#FF3B30";
-                  const correction = computeCorrection(r, refDb);
+                  const correction = computeCorrection(r, refDb, deadBandDb);
                   const corrColor = correction === 0
                     ? "#555"
                     : Math.abs(correction) >= MATCH_CLAMP_DB - 0.01 ? "#FF3B30" : "#FFD60A";
