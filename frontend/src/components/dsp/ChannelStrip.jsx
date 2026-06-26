@@ -60,35 +60,48 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
       {/* ----- Header (clickable to select) ----- */}
       <div
         onClick={() => onSelect?.(output.id)}
-        className="px-2 py-2 border-b-2 flex items-center justify-between cursor-pointer hover:bg-black/40"
+        className="px-2 pt-1.5 pb-2 border-b-2 cursor-pointer hover:bg-black/40"
         style={{
           background: selected ? "#001a2a" : isVirtual ? "#1a1208" : "#141414",
           borderBottomColor: selected ? "#00B7FF" : accentTone,
         }}
       >
-        <div className="flex flex-col grow min-w-0">
-          <span
-            className="text-[8px] font-mono uppercase tracking-[0.2em] truncate"
-            style={{ color: selected ? "#00B7FF" : accentTone }}
+        {/* Description / purpose — free-text annotation for the channel role */}
+        <input
+          value={output.description || ""}
+          onChange={(e) => setField({ description: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="Purpose…"
+          maxLength={32}
+          className="w-full bg-black/60 border border-neutral-800 text-[10px] font-mono text-[#00B7FF] placeholder:text-neutral-700 px-1 py-0.5 outline-none focus:border-[#00B7FF] mb-1"
+          data-testid={tid("description")}
+          title="Describe what this channel is used for (e.g. 'Lead Vocal', 'Sub L')"
+        />
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col grow min-w-0">
+            <span
+              className="text-[8px] font-mono uppercase tracking-[0.2em] truncate"
+              style={{ color: selected ? "#00B7FF" : accentTone }}
+            >
+              {selected ? "▸ SELECTED" : isVirtual ? "DANTE VIRT" : "PHYSICAL"}
+            </span>
+            <input
+              value={output.name}
+              onChange={(e) => setField({ name: e.target.value })}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-transparent text-sm font-mono font-bold text-white w-full outline-none focus:bg-black/40 px-0.5 -mx-0.5 rounded-sm"
+              data-testid={tid("name")}
+            />
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); resetChannel(output.id); }}
+            title="Reset channel"
+            data-testid={tid("reset")}
+            className="text-xs font-mono text-neutral-500 hover:text-white shrink-0 px-1.5"
           >
-            {selected ? "▸ SELECTED" : isVirtual ? "DANTE VIRT" : "PHYSICAL"}
-          </span>
-          <input
-            value={output.name}
-            onChange={(e) => setField({ name: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-transparent text-sm font-mono font-bold text-white w-full outline-none focus:bg-black/40 px-0.5 -mx-0.5 rounded-sm"
-            data-testid={tid("name")}
-          />
+            ↺
+          </button>
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); resetChannel(output.id); }}
-          title="Reset channel"
-          data-testid={tid("reset")}
-          className="text-xs font-mono text-neutral-500 hover:text-white shrink-0 px-1.5"
-        >
-          ↺
-        </button>
       </div>
 
       {/* ----- Input meter (pre-DSP, post-routing) ----- */}

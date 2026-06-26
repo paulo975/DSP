@@ -43,20 +43,30 @@ const ChannelPills = ({ selectedId, onSelect, bank, setBank }) => {
           {active.items.map((o) => {
             const isSelected = o.id === selectedId;
             const muted = o.mute;
+            const tip = o.description ? `${o.name} — ${o.description}` : o.name;
             return (
               <button
                 key={o.id}
                 onClick={() => onSelect(o.id)}
                 data-testid={`pill-${o.id}`}
-                title={o.name}
-                className="shrink-0 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.1em] border transition-colors min-w-[64px]"
+                title={tip}
+                className="shrink-0 px-3 py-1 text-[10px] font-mono font-bold uppercase tracking-[0.1em] border transition-colors min-w-[64px] flex flex-col items-center leading-tight"
                 style={{
                   background: isSelected ? "#00B7FF" : muted ? "#2a0a0a" : "#0f0f0f",
                   color: isSelected ? "#000" : muted ? "#FF3B30" : "#fff",
                   borderColor: isSelected ? "#00B7FF" : muted ? "#FF3B30" : "#2a2a2a",
                 }}
               >
-                {o.name}
+                <span>{o.name}</span>
+                {o.description && (
+                  <span
+                    className="text-[8px] font-normal normal-case tracking-normal truncate w-full mt-0.5"
+                    style={{ color: isSelected ? "#001a2a" : "#999" }}
+                    data-testid={`pill-${o.id}-desc`}
+                  >
+                    {o.description}
+                  </span>
+                )}
               </button>
             );
           })}

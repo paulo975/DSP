@@ -72,16 +72,27 @@ const SelectedChannelPanel = ({ outputId, onOpenEq, onOpenComp, onClose }) => {
           <div className="w-8 h-8 flex items-center justify-center font-mono font-bold text-sm" style={{ background: accent, color: "#000" }}>
             {out.kind === "out_phy" ? "P" : "V"}
           </div>
-          <div>
+          <div className="grow">
             <div className="text-[9px] font-mono uppercase tracking-[0.2em]" style={{ color: accent }}>
               {isVirtual ? "Dante Virtual Output" : "Physical Output"} · ch {out.index + 1}
             </div>
-            <input
-              value={out.name}
-              onChange={(e) => setField({ name: e.target.value })}
-              className="bg-transparent text-xl font-bold text-white outline-none focus:bg-black/40 px-1 -mx-1 rounded-sm w-48"
-              data-testid="sel-channel-name"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                value={out.name}
+                onChange={(e) => setField({ name: e.target.value })}
+                className="bg-transparent text-xl font-bold text-white outline-none focus:bg-black/40 px-1 -mx-1 rounded-sm w-32"
+                data-testid="sel-channel-name"
+              />
+              <input
+                value={out.description || ""}
+                onChange={(e) => setField({ description: e.target.value })}
+                placeholder="Purpose / role…"
+                maxLength={64}
+                className="bg-black/60 border border-neutral-800 text-xs font-mono text-[#00B7FF] placeholder:text-neutral-600 px-2 py-1 outline-none focus:border-[#00B7FF] w-56"
+                data-testid="sel-channel-description"
+                title="Free-text description: what is this channel used for?"
+              />
+            </div>
           </div>
         </div>
 

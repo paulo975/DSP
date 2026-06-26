@@ -18,7 +18,12 @@ const loadFromStorage = () => {
     // Migrate older states that pre-date some channel fields.
     parsed.outputs = (parsed.outputs || []).map((o) => ({
       ...o,
+      description: o.description ?? "",
       pinkNoise: o.pinkNoise || { enabled: false, level: -20 },
+    }));
+    parsed.inputs = (parsed.inputs || []).map((i) => ({
+      ...i,
+      description: i.description ?? "",
     }));
     return parsed;
   } catch (err) {

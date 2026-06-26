@@ -34,6 +34,7 @@ export const defaultChannel = (idx, kind) => ({
         : kind === "out_phy"
           ? `OUT ${idx + 1}`
           : `VOUT ${idx + 1}`,
+  description: "", // free text — what this channel is used for (e.g. "Lead Vocal", "Sub L")
   gain: 0, // dB, -60..+12
   mute: false,
   solo: false,
