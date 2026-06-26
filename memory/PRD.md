@@ -26,6 +26,13 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Auto-Capture Sequence)
+- ✅ **Auto-Capture Sequence** modal accessible from Meters view (cyan ⇶ Auto-Capture button). Configurable scope (Physical only / Dante Virtual only / All), pink-noise level (−40 to 0 dB), dwell per channel (500–3000 ms) and settle time (100–1000 ms).
+- ✅ Sequential sweep: snapshots every channel's mute + pinkNoise state, mutes all, energises one channel at a time with pink noise, samples `getOutputLevel()` for the dwell window keeping peak, records `{idx, channel, kind, peakDb, targetDb}`, then restores original state on completion or cancel.
+- ✅ Live progress bar with channel name + index/total. Cancel button stops the sweep mid-flight and still restores state.
+- ✅ Results table with per-row Δ vs average column + footer average dB readout. **Export CSV** downloads `auto-capture-{scope}-{ISO}.csv` with header `index,channel,kind,peak_db,target_level_db,delta_db`.
+- ✅ Respects read-only mode (Start button disabled).
+
 ## What's Been Implemented (2026-02-13 — Test Signal v2 + Pan Visual + Meters Pop-out)
 **New in iteration 13:**
 - ✅ **Multi-mode Test Signal generator**: PINK noise (Paul Kellet), WHITE noise (flat spectrum), and SINE SWEEP (logarithmic 20 Hz → 20 kHz over 8 s, looped). Selectable from a unified PINK / WHT / SWP button group in TopBar; broadcasts the chosen type to all 32 outputs.
@@ -61,10 +68,10 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 4 (2026-01-25)**: 100% passed after Pink Noise generator added on all channels (per-output BufferSource w/ Paul Kellet algorithm, master broadcast UI, per-strip toggle, SelectedChannelPanel fine control). Legacy state migration verified. Report: `/app/test_reports/iteration_4.json`.
 - **Iterations 5–12 (2026-01-25 → 02-12)**: Custom channel descriptions, Print Channel Map with SVG Signal Flow diagram, animated GR meter, analog-style classic faders, Read-Only/Showcase mode. All 100% passed.
 - **Iteration 13 (2026-02-13)**: 9/9 passed — PINK/WHT/SWP type selector + analog-style Pan visual + Meters pop-out via `#popout=meters` (no AudioContext in popout, BroadcastChannel meter sync verified). Report: `/app/test_reports/iteration_13.json`.
+- **Iteration 14 (2026-02-13)**: 100% passed — Auto-Capture Sequence (sweep 16/32 outputs with pink noise, peak-dB report, CSV export, mid-sweep cancel preserves channel state, read-only disables start). Report: `/app/test_reports/iteration_14.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
-- **Auto-Capture Sequence**: scan the 16 outputs sequentially with pink noise, snapshot each, export combined CSV (acoustic baseline report).
 - **Channel link estéreo**: pair L/R strips with a single fader and gang their parameters.
 - Solo logic UX: visual indication that other channels are dimmed when a solo is active.
 - Drag-to-edit on the EQ curve itself (move band freq/gain by dragging the line).
