@@ -2,6 +2,7 @@ import React from "react";
 import { useDsp } from "@/lib/dspStore";
 import { audioEngine } from "@/lib/audioEngine";
 import Meter from "./Meter";
+import SnapshotPanel from "./SnapshotPanel";
 
 const dbFromLevel = (lvl) => {
   if (lvl <= 0) return -Infinity;
@@ -61,7 +62,9 @@ const MeterPeakDb = ({ channelId, source, testId }) => {
         p = Math.max(0, p * 0.95);
         lastDecay = t;
       }
-      setPeak(dbFromLevel(p));
+      const db = dbFromLevel(p);
+      audioEngine.recordPeak(channelId, p, db);
+      setPeak(db);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -107,6 +110,7 @@ const ScaleColumn = () => (
 
 const MetersView = () => {
   const { state } = useDsp();
+  const [snapshotOpen, setSnapshotOpen] = React.useState(false);
 
   const inPhy = state.inputs.filter((i) => i.kind === "in_phy");
   const inVirt = state.inputs.filter((i) => i.kind === "in_virt");
@@ -122,10 +126,19 @@ const MetersView = () => {
             Real-time input/output levels · dBFS peak-hold readout
           </p>
         </div>
-        <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-500">
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#00FF41" }} /> nominal</div>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FFB800" }} /> headroom</div>
-          <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FF0000" }} /> clip</div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4 text-[10px] font-mono text-neutral-500">
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#00FF41" }} /> nominal</div>
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FFB800" }} /> headroom</div>
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FF0000" }} /> clip</div>
+          </div>
+          <button
+            onClick={() => setSnapshotOpen(true)}
+            data-testid="open-snapshot"
+            className="px-3 py-1.5 border border-[#FF6B00] text-[#FF6B00] text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#FF6B00] hover:text-black transition-colors"
+          >
+            ◉ Capture Snapshot
+          </button>
         </div>
       </div>
 
@@ -159,7 +172,10 @@ const MetersView = () => {
         <div>• Input meters read the raw input bus signal (file source goes to IN 1/2; other inputs are silent unless routed by an external source).</div>
         <div>• Output meters read the post-DSP, pre-master output (after EQ/comp/delay/pan/gain).</div>
         <div>• Use <span className="text-[#FF7AC6]">Pink Noise</span> in the top bar to inject test signals into every output simultaneously.</div>
+        <div>• Click <span className="text-[#FF6B00]">◉ Capture Snapshot</span> to freeze the current dB readout of all channels for calibration / documentation.</div>
       </div>
+
+      {snapshotOpen && <SnapshotPanel onClose={() => setSnapshotOpen(false)} />}
     </div>
   );
 };

@@ -15,6 +15,7 @@ class AudioEngine {
     this.inputBusAnalysers = {}; // inputId -> AnalyserNode (input bus meter)
     this.outputChains = {}; // outputId -> { input, hpf, lpf, eqs[], comp, makeup, delay, panL, panR, gainL, gainR, analyser }
     this.outputRouteGains = {}; // `${inputId}->${outputId}` -> GainNode
+    this.peakRegistry = new Map(); // channelId -> { peak: 0..1, peakDb: number, ts: ms }
     this.analysers = {}; // outputId -> AnalyserNode
     this.playing = false;
     this.startedAt = 0;
@@ -437,6 +438,16 @@ class AudioEngine {
   // Return RMS-like level (0..1) of the raw input bus (post-summing, pre-routing).
   getInputBusLevel(inputId) {
     return this._readAnalyser(this.inputBusAnalysers[inputId]);
+  }
+
+  // Peak registry — meters write their held peak here each tick so the
+  // Snapshot feature can read a coherent picture across all channels.
+  recordPeak(channelId, peak, peakDb) {
+    this.peakRegistry.set(channelId, { peak, peakDb, ts: performance.now() });
+  }
+
+  getPeak(channelId) {
+    return this.peakRegistry.get(channelId);
   }
 
   _readAnalyser(a) {
