@@ -26,6 +26,16 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Calibration Profiles)
+- ✅ **Calibration Profiles** — 4 pre-tuned presets selectable from a bar in MetersView, each with scenario-appropriate `scope/levelDb/dwellMs/settleMs/matchMode/deadBandDb`:
+  - ♪ **Live Band** (red) — touring PA, −12 dB / 1200 ms / ±1.5 dB tolerance
+  - ▱ **Car Audio** (orange, default) — reflective cabin, −18 dB / 2000 ms / ±1.0 dB
+  - ○ **Home Studio** (cyan) — near-field, −24 dB / 1500 ms / ±0.3 dB clinical
+  - ✦ **House of Worship** (yellow) — reverberant, all 32 channels, −15 dB / 2500 ms / ±2.0 dB
+- ✅ Active profile persisted in `localStorage` key `dsp_calibration_profile_v1` — survives reload.
+- ✅ Selected profile is fed into the One-Click Calibration pipeline (`profileId` prop) and seeds the modal sliders, modal header (`⚡ One-Click Calibration · ♪ Live Band`), and the saved snapshot name (`One-Click (Live Band) <timestamp>`). The Auto-Capture modal keeps its hard-coded defaults — profiles are a One-Click concept.
+- ✅ `computeCorrection()` now accepts a `deadBandDb` override so each profile's tolerance threshold is honoured during Level Match.
+
 ## What's Been Implemented (2026-02-13 — One-Click Calibration)
 - ✅ **One-Click Calibration**: a single yellow button in MetersView (`open-one-click`) chains the full installer pipeline in ~30 s — (1) sweep all PHY outputs at −18 dB, (2) Auto Level Match to AVG, (3) save snapshot to `dsp_snapshots_v1` localStorage, (4) export CSV.
 - ✅ Pipeline status banner above the modal shows the active step (sweep / matching / snapshotting / done / cancelled) with colour coding.
@@ -86,6 +96,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 15 (2026-02-13)**: 100% passed — Auto Level Match (post-sweep corrective gain, AVG/TARGET ref selector, ±12 dB clamp, silent-channel filter, one-click Apply + Undo). Report: `/app/test_reports/iteration_15.json`.
 - **Iteration 16 (2026-02-13)**: 10/11 — One-Click Calibration pipeline (sweep → match → snapshot → CSV). 1 HIGH-priority safety bug found: read-only mode didn't halt the pipeline. Report: `/app/test_reports/iteration_16.json`.
 - **Iteration 17 (2026-02-13)**: 100% passed — Fix verified for the read-only safety bug (typed sentinel `{cancelled, count}` from `start()` + defense-in-depth orchestrator guard `!sweepRes || cancelled || count===0`). Report: `/app/test_reports/iteration_17.json`.
+- **Iteration 18 (2026-02-13)**: 100% passed — Calibration Profiles (4 presets, persistence via localStorage, seeds One-Click sliders, snapshot name embeds profile, Auto-Capture keeps defaults). Report: `/app/test_reports/iteration_18.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
