@@ -26,6 +26,13 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Test Signal v2 + Pan Visual + Meters Pop-out)
+**New in iteration 13:**
+- ✅ **Multi-mode Test Signal generator**: PINK noise (Paul Kellet), WHITE noise (flat spectrum), and SINE SWEEP (logarithmic 20 Hz → 20 kHz over 8 s, looped). Selectable from a unified PINK / WHT / SWP button group in TopBar; broadcasts the chosen type to all 32 outputs.
+- ✅ **Analog-style Pan visualization** in ChannelStrip: 24 px L/R balance bar with equal-power gradient (cos/sin matching the audio engine), glowing white position cursor, center tick, side L/R labels, double-click to recenter.
+- ✅ **Meters Pop-out window** for multi-monitor setups: `meters-popout` button opens `#popout=meters` in a separate window. Popout never builds its own audio graph; instead it mirrors live state via the `storage` event and live meter values via a `BroadcastChannel("dsp-meters-sync")` published at 20 Hz from the main window.
+- ✅ Fixed P0 compile error (duplicate `type` key in setAllPinkNoise dispatch — renamed action param to `noiseType`).
+
 ## What's Been Implemented (2026-01-25 — MVP + ChannelStrip Redesign v2 + Yamaha Console v3)
 - ✅ Two-version DSP shell (16+16 / 8+8 Dante) with confirmation modal on switch.
 - ✅ Redesigned channel strips with **horizontal input meter** (pre-DSP, post-routing) below header, **larger vertical output meter** (20 LED segments) beside fader, clearer Section headers (Crossover / Processing / Delay / Pan / OUT), **full-width MUTE/SOLO buttons** in 2-col grid, and **EQ / DYNAMICS buttons** that turn amber when active.
@@ -52,20 +59,25 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 2 (2026-01-25)**: 15/15 passed after channel-strip redesign — new input meter + larger output meter validated, no regressions on legacy testids, persistence intact. Report: `/app/test_reports/iteration_2.json`.
 - **Iteration 3 (2026-01-25)**: 14/14 passed after Yamaha-style SelectedChannelPanel + ChannelPills + InlineEqGraph (5 draggable colored band markers) + CompCurve added. Selection state is intentionally non-persistent; DSP config persistence still works. Report: `/app/test_reports/iteration_3.json`.
 - **Iteration 4 (2026-01-25)**: 100% passed after Pink Noise generator added on all channels (per-output BufferSource w/ Paul Kellet algorithm, master broadcast UI, per-strip toggle, SelectedChannelPanel fine control). Legacy state migration verified. Report: `/app/test_reports/iteration_4.json`.
+- **Iterations 5–12 (2026-01-25 → 02-12)**: Custom channel descriptions, Print Channel Map with SVG Signal Flow diagram, animated GR meter, analog-style classic faders, Read-Only/Showcase mode. All 100% passed.
+- **Iteration 13 (2026-02-13)**: 9/9 passed — PINK/WHT/SWP type selector + analog-style Pan visual + Meters pop-out via `#popout=meters` (no AudioContext in popout, BroadcastChannel meter sync verified). Report: `/app/test_reports/iteration_13.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
+- **Auto-Capture Sequence**: scan the 16 outputs sequentially with pink noise, snapshot each, export combined CSV (acoustic baseline report).
+- **Channel link estéreo**: pair L/R strips with a single fader and gang their parameters.
 - Solo logic UX: visual indication that other channels are dimmed when a solo is active.
 - Drag-to-edit on the EQ curve itself (move band freq/gain by dragging the line).
-- Stereo-link button for paired channels (1+2, 3+4, ...).
 - Channel-name labels in the matrix tooltips on hover.
 
 ### P2
+- Toggle **Logical/Physical** in the Signal Flow diagram (show back-panel XLR mapping in Print Map).
+- **Shareable URL**: encode complete state to base64 in URL hash for quick session sharing.
+- Compact **GR meter inline** in ChannelStrip (already in SelectedChannelPanel).
 - Real-time spectrum analyzer (FFT) per output.
 - A/B preset compare snapshot.
 - Polarity (phase invert) button per channel.
 - Group/scene buttons (recall multiple presets).
-- Lock/freeze parameter to prevent accidental edits.
 
 ### Future / Out of scope for MVP
 - Real Dante audio I/O (requires native SDK and hardware; this is a UI/processing emulation).
