@@ -26,6 +26,13 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Auto Level Match)
+- ✅ **Auto Level Match** extends Auto-Capture: after a sweep, the modal computes per-channel corrective gain to match either the sweep average (AVG mode) or the dialled-in target dB (TARGET mode).
+- ✅ Safety guard rails: corrections clamped to ±12 dB per channel, channels with peak ≤ −55 dB (silent/dead) are skipped, ±0.3 dB dead-band ignores micro-corrections.
+- ✅ Correction column added to results table (yellow #FFD60A, red when clamp ceiling hit). Footer shows `correctable_count` of channels that would actually move.
+- ✅ **Apply Match** button (yellow CTA) applies all corrections in one click. **Undo Match** appears next to it, reverting every changed channel to its pre-match gain.
+- ✅ Re-running a sweep clears any prior `appliedUndo` so the Undo button never leaks across captures.
+
 ## What's Been Implemented (2026-02-13 — Auto-Capture Sequence)
 - ✅ **Auto-Capture Sequence** modal accessible from Meters view (cyan ⇶ Auto-Capture button). Configurable scope (Physical only / Dante Virtual only / All), pink-noise level (−40 to 0 dB), dwell per channel (500–3000 ms) and settle time (100–1000 ms).
 - ✅ Sequential sweep: snapshots every channel's mute + pinkNoise state, mutes all, energises one channel at a time with pink noise, samples `getOutputLevel()` for the dwell window keeping peak, records `{idx, channel, kind, peakDb, targetDb}`, then restores original state on completion or cancel.
@@ -69,6 +76,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iterations 5–12 (2026-01-25 → 02-12)**: Custom channel descriptions, Print Channel Map with SVG Signal Flow diagram, animated GR meter, analog-style classic faders, Read-Only/Showcase mode. All 100% passed.
 - **Iteration 13 (2026-02-13)**: 9/9 passed — PINK/WHT/SWP type selector + analog-style Pan visual + Meters pop-out via `#popout=meters` (no AudioContext in popout, BroadcastChannel meter sync verified). Report: `/app/test_reports/iteration_13.json`.
 - **Iteration 14 (2026-02-13)**: 100% passed — Auto-Capture Sequence (sweep 16/32 outputs with pink noise, peak-dB report, CSV export, mid-sweep cancel preserves channel state, read-only disables start). Report: `/app/test_reports/iteration_14.json`.
+- **Iteration 15 (2026-02-13)**: 100% passed — Auto Level Match (post-sweep corrective gain, AVG/TARGET ref selector, ±12 dB clamp, silent-channel filter, one-click Apply + Undo). Report: `/app/test_reports/iteration_15.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
