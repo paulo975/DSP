@@ -1,6 +1,7 @@
 import React from "react";
 import { useDsp } from "@/lib/dspStore";
 import { VERSIONS, formatDelay } from "@/lib/dspDefaults";
+import SignalFlowDiagram from "./SignalFlowDiagram";
 
 const yesNo = (b) => (b ? "✓" : "—");
 const fmtDb = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(1)} dB`;
@@ -66,6 +67,9 @@ const ChannelMapPrint = ({ onClose }) => {
               <div>Version: {state.version}</div>
             </div>
           </div>
+
+          {/* Signal Flow Diagram — visual representation of active routing */}
+          <SignalFlowDiagram state={state} />
 
           {/* Outputs table */}
           <h2 className="text-base font-bold mt-2 mb-2 uppercase tracking-wide">Output Channels</h2>
