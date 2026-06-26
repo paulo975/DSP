@@ -1,0 +1,24 @@
+{
+  "summary": "Verified Auto-Capture Sequence feature end-to-end on Meters view: modal opens, scope/level/dwell/settle controls behave correctly, sweep runs through all 16 PHY outputs, cancel mid-run leaves partial rows, CSV download fires with correct filename pattern, readonly disables Start, and all regression buttons coexist.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AutoCaptureSequence.start() mutates dspStore for every output then immediately reads `state.outputs` snapshot — fine because closure captures pre-mutation snapshot, but if the store ever becomes async this could race. Consider using functional updates or capturing snapshot via store.getState() to be future-proof.",
+    "Sequence does NOT await the React state-update tick after updateOutputDeep before sampling meters. In live audio this is OK (audio graph updates synchronously via audioEngine), but in the headless test environment all peak values are -∞ (AudioContext suspended). Not a bug — expected — but worth a comment in the file.",
+    "Settle slider step=50 ms but min=100; pressing Home in the test correctly produced 100 ms. No issue.",
+    "downloadCsv uses URL.createObjectURL + a.click() without appending to document — works in modern Chromium but some browsers (Firefox) require the anchor to be in the DOM. Low priority."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Auto-Capture Sequence (iteration 14) is fully functional. Test invariants verified: row count == scope size (16 for phy, 32 for all), state restoration after cancel (mute buttons not stuck), CSV filename pattern 'auto-capture-phy-*.csv', readonly disables ac-start (disabled attribute present + opacity-30 class). Peak dB values are −∞ in headless because AudioContext is suspended without user gesture — that is expected and not a bug. All regression items (open-snapshot, meters-popout, pn-type-pink/white/sweep) still present. Test used ac-dwell=500 / ac-settle=100 to keep runtime ~10 s.",
+  "rca of the issue": "n/a — no issues found"
+}

@@ -3,6 +3,7 @@ import { useDsp } from "@/lib/dspStore";
 import { audioEngine } from "@/lib/audioEngine";
 import Meter from "./Meter";
 import SnapshotPanel from "./SnapshotPanel";
+import AutoCaptureSequence from "./AutoCaptureSequence";
 
 const dbFromLevel = (lvl) => {
   if (lvl <= 0) return -Infinity;
@@ -111,6 +112,7 @@ const ScaleColumn = () => (
 const MetersView = () => {
   const { state } = useDsp();
   const [snapshotOpen, setSnapshotOpen] = React.useState(false);
+  const [autoCaptureOpen, setAutoCaptureOpen] = React.useState(false);
 
   const inPhy = state.inputs.filter((i) => i.kind === "in_phy");
   const inVirt = state.inputs.filter((i) => i.kind === "in_virt");
@@ -140,6 +142,14 @@ const MetersView = () => {
             <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FFB800" }} /> headroom</div>
             <div className="flex items-center gap-1.5"><div className="w-2 h-2" style={{ background: "#FF0000" }} /> clip</div>
           </div>
+          <button
+            onClick={() => setAutoCaptureOpen(true)}
+            data-testid="open-auto-capture"
+            title="Sweep each output with pink noise and measure peak dB — ideal for room calibration / level matching"
+            className="px-3 py-1.5 border border-[#00B7FF] text-[#00B7FF] text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#00B7FF] hover:text-black transition-colors"
+          >
+            ⇶ Auto-Capture
+          </button>
           <button
             onClick={() => setSnapshotOpen(true)}
             data-testid="open-snapshot"
@@ -184,6 +194,7 @@ const MetersView = () => {
       </div>
 
       {snapshotOpen && <SnapshotPanel onClose={() => setSnapshotOpen(false)} />}
+      {autoCaptureOpen && <AutoCaptureSequence onClose={() => setAutoCaptureOpen(false)} />}
     </div>
   );
 };
