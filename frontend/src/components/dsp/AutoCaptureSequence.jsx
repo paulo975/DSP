@@ -81,8 +81,11 @@ const AutoCaptureSequence = ({ onClose, oneClick = false }) => {
   useEffect(() => () => { cancelRef.current = true; }, []);
 
   const start = async () => {
-    if (readOnly) { setError("App is in read-only mode — unlock first."); return; }
-    if (running) return;
+    if (readOnly) {
+      setError("App is in read-only mode — unlock first.");
+      return { cancelled: true, count: 0 };
+    }
+    if (running) return { cancelled: true, count: 0 };
     setError(null);
     setResults([]);
     setAppliedUndo(null);
@@ -235,7 +238,13 @@ const AutoCaptureSequence = ({ onClose, oneClick = false }) => {
 
     // 1. Sweep
     const sweepRes = await start();
-    if (sweepRes?.cancelled) { setOcPhase("cancelled"); return; }
+    // Halt the pipeline if the sweep was cancelled, blocked (read-only) or
+    // produced zero samples — prevents snapshot/CSV side-effects on a
+    // locked app.
+    if (!sweepRes || sweepRes.cancelled || sweepRes.count === 0) {
+      setOcPhase("cancelled");
+      return;
+    }
 
     // 2. Auto Level Match (AVG mode)
     setOcPhase("matching");

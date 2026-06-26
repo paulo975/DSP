@@ -1,0 +1,25 @@
+{
+  "summary": "RETEST of iteration-16 read-only safety violation in One-Click Calibration pipeline. The fix in AutoCaptureSequence.jsx (start() returns {cancelled:true,count:0} on readOnly + defense-in-depth orchestrator guard !sweepRes || sweepRes.cancelled || sweepRes.count===0) is VERIFIED. Read-only test now PASSES all 5 invariants: oc-phase-id ends at 'phase: cancelled' (NOT 'done'), ac-error 'App is in read-only mode — unlock first.' is shown, oc-summary card is NOT rendered, NO CSV download fires, NO 'One-Click ...' entry appears in localStorage dsp_snapshots_v1. Happy path with readOnly OFF also confirmed: full pipeline runs sweep → done in ~30s, oc-summary renders with swept=16/matched=0/snapshot 'One-Click 6/26/2026, 4:37:38 PM'/CSV 'one-click-calibration-2026-06-26T16-37-38-556Z.csv', snapshot persisted to localStorage. Regression: pn-type-pink/white/sweep, out-out_phy-0-pan-visual, meters-popout all still render.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/readonly_test.png", "/app/test_reports/retest_done.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is well-architected with two-layer defense: (1) start() now returns a typed sentinel {cancelled:true,count:0} instead of undefined when readOnly, and (2) runOneClickPipeline guard widened to `!sweepRes || sweepRes.cancelled || sweepRes.count===0` so future regressions in start()'s return contract still halt the pipeline. Recommend keeping both — the defense-in-depth guard is cheap and catches any future early-return paths.",
+    "AutoCaptureSequence.jsx is 625 lines — approaching the 700-line guideline. Consider extracting runOneClickPipeline + CSV helpers into a separate hook on next iteration (carried over from iteration_16).",
+    "Confirmed: phase 'cancelled' state shows the user-facing message '✕ Cancelled by user — original state restored' in the modal banner, which is appropriate for read-only halt.",
+    "CSV download detection via document.addEventListener('click', ..., true) does NOT capture programmatic anchor.click() on detached <a> elements (the app's downloadCsv path). The oc-summary card's 'CSV exported <filename>' text is the more reliable behavioural assertion."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "n/a (frontend-only, no auth)",
+  "seed_data_creation": "Cleared dsp_snapshots_v1 localStorage between read-only and happy-path runs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 17 retest result: HIGH-priority read-only safety bug from iteration_16 is FIXED. Verified phases observed: ['phase: sweep', 'phase: done'] for happy path (matching transitions in <500ms — sub-poll-interval, not a bug). Read-only flow halts immediately at 'phase: cancelled' with NO side effects. Sweep + matching + snapshotting + downloadCsv are now correctly gated by `if (!sweepRes || sweepRes.cancelled || sweepRes.count===0) { setOcPhase('cancelled'); return; }` at AutoCaptureSequence.jsx:244. Regression suite still green. No outstanding bugs.",
+  "rca of the issue": "Was: start() returned undefined on readOnly so sweepRes?.cancelled === undefined (falsy) — pipeline continued through matching/snapshotting/done. Fix applied at AutoCaptureSequence.jsx:84-87 (start now returns {cancelled:true,count:0} on readOnly) AND at line 244 (orchestrator guard widened to !sweepRes || sweepRes.cancelled || sweepRes.count===0). Both layers verified working: phase now ends at 'cancelled', no snapshot saved, no CSV downloaded, no oc-summary rendered."
+}
