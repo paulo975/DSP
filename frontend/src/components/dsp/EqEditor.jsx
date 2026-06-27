@@ -144,6 +144,7 @@ const EqEditor = ({ outputId, onClose }) => {
           <div className="h-72 bg-black border border-neutral-900 p-2" data-testid="eq-chart">
             {chartMode === "drag" ? (
               <EqDragChart
+                outputId={out.id}
                 bands={out.eq.bands}
                 hpf={out.crossover.hpf}
                 lpf={out.crossover.lpf}

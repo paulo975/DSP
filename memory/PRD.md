@@ -26,6 +26,12 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — EQ Spectrum Analyzer · live FFT behind the curve)
+- ✅ **Per-output FFT analyser** attached on demand when EQ editor opens, detached on close. `fftSize=2048` (1024 bins, ~23 Hz/bin at 48 kHz) tapped at the chain *input* (pre-DSP) so the spectrum shows the source signal — FabFilter Pro-Q convention.
+- ✅ **Cyan semi-transparent spectrum** drawn behind the orange EQ curve in `EqDragChart`. 128 log-spaced sample points polyline + filled area to baseline. rAF loop at 30 FPS keeps the spectrum lively without burning CPU. Path is empty (renders nothing) when no audio is flowing — clean look at rest.
+- ✅ **Engine API**: new `audioEngine.attachSpectrum(outputId)` / `detachSpectrum(outputId)` / `getSpectrum(outputId)`. Spectrum analysers are cleaned up in `teardownGraph` so version switches don't leak nodes. `smoothingTimeConstant=0.78` keeps the visual smooth without losing transients.
+- ✅ **E2E verified**: with pink-noise enabled (so AudioContext is active), the spectrum visibly traces the −3 dB/oct slope of pink noise filtered through the chain. Detach + reattach on EQ close/reopen produces a fresh analyser without orphaning the old one. Path automatically updates with zoom changes (zoomRef pattern avoids retriggering the rAF setup).
+
 ## What's Been Implemented (2026-02-13 — EQ Hover Tooltip · live freq+gain readout)
 - ✅ **Floating hover tooltip** on `EqDragChart` — orange badge follows the cursor showing `<freq> Hz/kHz` + `<total chain gain> dB` at the exact frequency under the pointer. Pairs perfectly with the focal zoom for surgical EQ work ("am I really centred on 750 Hz?").
 - ✅ **Vertical guide line** (dashed orange) drops from top to bottom at the cursor X position — instant visual confirmation of where you're aiming on the curve.

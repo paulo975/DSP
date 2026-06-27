@@ -13,6 +13,7 @@
 // any zoom level. Curve sampling uses the same simplified biquad math
 // the rest of the app relies on (see EqEditor's bandGainAt).
 import React from "react";
+import { audioEngine } from "@/lib/audioEngine";
 
 const W = 800;     // logical viewBox width
 const H = 280;     // logical viewBox height
@@ -101,10 +102,15 @@ const formatFreqLabel = (f) => {
   return `${Math.round(f)}`;
 };
 
-const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) => {
+const EqDragChart = ({ outputId, bands, hpf, lpf, onBandChange, onBandReset, disabled }) => {
   const svgRef = React.useRef(null);
   const dragRef = React.useRef(null); // { bandIndex }
   const panRef = React.useRef(null); // { startClientX, startLog }
+  // Spectrum FFT (per-output, attached on mount, detached on unmount). The
+  // path string is updated via rAF — at ~30 fps and 128 polyline points
+  // this is cheap and stays in React's declarative model.
+  const fftBufRef = React.useRef(null);
+  const [spectrumPath, setSpectrumPath] = React.useState("");
 
   // Visible frequency window (log-scaled X axis). User pans/zooms inside it.
   const [zoom, setZoom] = React.useState({ fLo: F_MIN, fHi: F_MAX });
@@ -140,6 +146,73 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
     if (!curve.length) return "";
     return curve.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
   }, [curve]);
+
+  // ---- Spectrum analyser life-cycle + FFT rendering ----
+  // Attach a dedicated high-resolution analyser for this channel when the
+  // chart mounts; detach when it unmounts. The rAF loop polls the analyser
+  // at ~30 FPS and converts the linear-frequency bins to a log-X polyline
+  // that matches the EQ curve's axes. The path is intentionally throttled
+  // and capped to ~128 points to keep React updates cheap.
+  React.useEffect(() => {
+    if (!outputId) return undefined;
+    const analyser = audioEngine.attachSpectrum(outputId);
+    if (!analyser) return undefined;
+    const bins = analyser.frequencyBinCount;
+    if (!fftBufRef.current || fftBufRef.current.length !== bins) {
+      fftBufRef.current = new Uint8Array(bins);
+    }
+    const sampleRate = audioEngine.ctx?.sampleRate || 48000;
+    const nyquist = sampleRate / 2;
+    // Pre-compute the log-spaced sample frequencies once per mount.
+    const NPOINTS = 128;
+    const sampleFreqs = new Float32Array(NPOINTS);
+    for (let i = 0; i < NPOINTS; i++) {
+      sampleFreqs[i] = F_MIN * Math.pow(F_MAX / F_MIN, i / (NPOINTS - 1));
+    }
+    let raf = 0;
+    let lastDraw = 0;
+    const FRAME_MS = 1000 / 30; // 30 FPS is plenty for spectrum visuals
+    const tick = (ts) => {
+      raf = requestAnimationFrame(tick);
+      if (ts - lastDraw < FRAME_MS) return;
+      lastDraw = ts;
+      analyser.getByteFrequencyData(fftBufRef.current);
+      const buf = fftBufRef.current;
+      // Re-mappers — must reflect the latest zoom + curve mappers. We can't
+      // close over freqToX here (state-bound) because this effect only runs
+      // on mount; instead we recompute the mapper from the current zoom
+      // via a ref, but a simpler approach: read it off the SVG attribute
+      // each frame. Since zoom changes are rare, recomputing the mappers
+      // inline per frame is fine.
+      const { freqToX: f2x } = makeMappers(zoomRef.current.fLo, zoomRef.current.fHi);
+      let d = "";
+      for (let i = 0; i < NPOINTS; i++) {
+        const f = sampleFreqs[i];
+        // Linear-bin index for this log frequency.
+        const idx = Math.min(bins - 1, Math.max(0, Math.round((f / nyquist) * bins)));
+        const v = buf[idx] / 255; // 0..1, already byte-domain (~ -90..-10 dB mapped)
+        // Map byte-domain value into the chart's gain space so it visually
+        // aligns with the EQ curve: 0 → bottom of plot, 1 → ~+18 dB peak.
+        const gainEq = -24 + v * 42; // [-24..+18] range
+        const x = f2x(f);
+        const y = gainToY(gainEq);
+        d += `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)} `;
+      }
+      setSpectrumPath(d);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      audioEngine.detachSpectrum(outputId);
+      setSpectrumPath("");
+    };
+  }, [outputId]);
+
+  // Keep the analyser-effect's view of zoom up to date without retriggering
+  // the rAF setup every time the user pans/zooms (which would otherwise
+  // cause visible spectrum flicker).
+  const zoomRef = React.useRef(zoom);
+  React.useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
   const svgPointFromEvent = (e) => {
     const svg = svgRef.current;
@@ -329,6 +402,21 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
       )}
       {lpf.enabled && (
         <rect x={freqToX(lpf.freq)} y={PAD_T} width={Math.max(0, PAD_L + PLOT_W - freqToX(lpf.freq))} height={PLOT_H} fill="#FF6B0011" />
+      )}
+
+      {/* Live FFT spectrum — drawn first so the EQ curve overlays it.
+          Cyan fill + line; semi-transparent so users still see the grid.
+          The path is empty when no audio is flowing (analyser not attached
+          or AudioContext suspended), so nothing renders in that state. */}
+      {spectrumPath && (
+        <g pointerEvents="none" data-testid="eq-spectrum">
+          <path
+            d={`${spectrumPath} L ${W - PAD_R} ${PAD_T + PLOT_H} L ${PAD_L} ${PAD_T + PLOT_H} Z`}
+            fill="#22D3EE"
+            opacity={0.18}
+          />
+          <path d={spectrumPath} stroke="#22D3EE" strokeWidth={1.1} fill="none" opacity={0.55} />
+        </g>
       )}
 
       {/* EQ curve */}

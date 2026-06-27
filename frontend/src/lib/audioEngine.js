@@ -17,6 +17,7 @@ class AudioEngine {
     this.outputRouteGains = {}; // `${inputId}->${outputId}` -> GainNode
     this.peakRegistry = new Map(); // channelId -> { peak: 0..1, peakDb: number, ts: ms }
     this.analysers = {}; // outputId -> AnalyserNode
+    this.spectrumAnalysers = {}; // outputId -> dedicated high-FFT AnalyserNode (only when EQ editor is open)
     this.playing = false;
     this.startedAt = 0;
     this.startOffset = 0;
@@ -303,12 +304,50 @@ class AudioEngine {
         });
       });
     } catch (e) { /* noop */ }
+    // Clean up any open spectrum analysers — they reference chain nodes that
+    // are about to be disconnected so we must drop them here.
+    Object.values(this.spectrumAnalysers || {}).forEach((a) => {
+      try { a.disconnect(); } catch (err) { /* noop */ }
+    });
+    this.spectrumAnalysers = {};
     this.outputRouteGains = {};
     this.inputBuses = {};
     this.inputBusAnalysers = {};
     this.outputChains = {};
     this.analysers = {};
     this.stopFile();
+  }
+
+  // ---------- Spectrum analyser (per-output, on-demand) ----------
+  // Used by the EQ editor to render a real FFT behind the curve. We tap
+  // the chain *input* (pre-DSP) so the spectrum shows the source signal —
+  // matches the FabFilter Pro-Q convention: "what is coming in, that
+  // I'm trying to shape." Allocating one big FFT (2048) per open editor
+  // is fine because only one editor opens at a time.
+  attachSpectrum(outputId) {
+    const chain = this.outputChains[outputId];
+    if (!chain || !this.ctx) return null;
+    if (this.spectrumAnalysers[outputId]) return this.spectrumAnalysers[outputId];
+    const a = this.ctx.createAnalyser();
+    a.fftSize = 2048; // 1024 bins, ~23 Hz / bin at 48 kHz — plenty for visual cues
+    a.smoothingTimeConstant = 0.78; // smoother visual without losing transients
+    a.minDecibels = -90;
+    a.maxDecibels = -10;
+    chain.input.connect(a);
+    this.spectrumAnalysers[outputId] = a;
+    return a;
+  }
+
+  detachSpectrum(outputId) {
+    const a = this.spectrumAnalysers[outputId];
+    if (!a) return;
+    try { a.disconnect(); } catch (e) { /* noop */ }
+    delete this.spectrumAnalysers[outputId];
+  }
+
+  // Returns the AnalyserNode currently attached to this output (or null).
+  getSpectrum(outputId) {
+    return this.spectrumAnalysers[outputId] || null;
   }
 
   // ---------- Apply parameter updates ----------
