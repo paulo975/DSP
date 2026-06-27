@@ -67,21 +67,27 @@ value is the new state.
 
 ## 3. Parameter IDs (decoded from user-tagged actions)
 
-| Param ID  | Sub-param           | Action                          | Value semantics                                    |
-|-----------|---------------------|---------------------------------|----------------------------------------------------|
-| `0x012B`  | `0x0002`            | Rename channel (open dialog?)   | last 2B `01 00` = "begin/end edit"                 |
-| `0x012B`  | `0x0005`            | Channel mute                    | `00`=off, `01`=on                                  |
-| `0x00A7`  | `0x0015`            | Crossover / Low-pass control    | int16 signed sweep, e.g. -970 → +363               |
-| `0x00A6`  | `0x0001`            | Matrix routing toggle           | `<row 1B> <col 1B> <state 1B> 00` (state 0/1)     |
-| `0x0001`  | `0x0002`            | Compressor / processor block    | signed 16-bit                                      |
-| `0x0061`  | `0x0002`/`03`/`04`  | EQ band parameters (freq/gain/Q)| sub-param picks which band axis                    |
-| `0x0127`  | `0x0002`/`04`       | Phase / polarity invert         | `00`=normal, `01`=inverted                         |
-| `0x00C7`  | `0x0002`/`03`/`04`  | Delay (enable / time / ?)       | sub `02` toggle, sub `03` int16 samples-or-ms      |
-| `0x00E7`  | `0x0003`            | (seen during phase action)      | possibly aux parameter                             |
+| Param ID  | Sub-param           | Action                          | Value encoding (LE 4 bytes)                              |
+|-----------|---------------------|---------------------------------|----------------------------------------------------------|
+| `0x012B`  | `0x0002`            | Rename channel (begin/end edit) | `01 00 01 00`                                            |
+| `0x012B`  | `0x0005`            | Channel mute                    | `00`=off, `01`=on                                        |
+| `0x00A7`  | `0x0015`            | Crossover / Low-pass            | int16 signed sweep                                       |
+| `0x00A6`  | `0x0001`            | Matrix routing toggle           | `<row 1B> <col 1B> <state 1B> 00` ✅ fully decoded       |
+| `0x0001`  | `0x0002`            | Compressor (single knob)        | signed 16-bit value                                      |
+| `0x0061`  | `0x0003`            | **EQ band — FREQUENCY** ✅      | `01 00 <freq_idx LE16>` (101..500 in capture)            |
+| `0x0061`  | `0x0004`            | **EQ band — GAIN** ✅           | `01 00 <gain×100 LE16>` (e.g. 600 = +6.0 dB)             |
+| `0x0061`  | `0x0005`            | **EQ band — Q** ✅              | `01 00 <Q×100 LE16>` (e.g. 302 = Q 3.02)                 |
+| `0x0127`  | `0x0002`/`04`       | Phase / polarity invert         | `00`=normal, `01`=inverted                               |
+| `0x00F4`  | `0x0002`            | **Delay (ms)** ✅                | `<delay_ms LE32>` — value = delay in milliseconds        |
 
-> Sub-param 0x0002, 0x0003, 0x0004 frequently appear as a *triplet* meaning
-> "enable + value + sign-or-fine-tune". Need a 4th capture to nail the exact
-> meaning of each sub for EQ/Delay before mapping to the web app's data model.
+> **EQ band value envelope** (verified from isolated capture):
+> - The 4-byte payload is structured as `<flag/scope LE16> <value LE16>` where
+>   `flag = 01 00` means "enable this band axis" and the 2nd half is the
+>   actual integer state. EQ values use × 100 fixed point so 6 dB → 600,
+>   Q 3.0 → 300, and so on. Frequency is an *index* (not Hz directly) —
+>   needs the full table from the hardware to convert idx → Hz.
+>
+> **Delay** uses the full 32-bit LE value as raw milliseconds, no scaling.
 
 ---
 
