@@ -26,6 +26,13 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Hotkeys 1-8 for Scene Recall)
+- ✅ Window keydown listener (digits **1**–**8**) recalls the corresponding scene slot. Empty slots are skipped, modifier combos (Ctrl/Meta/Alt) are ignored, and the listener bails out when focus is on an `<input>` / `<textarea>` / `<select>` / `contentEditable` element so typing never hijacks recall.
+- ✅ Hotkey badge in the top-right of every slot (`scene-hotkey-1`..`scene-hotkey-8`) for discoverability — uses the slot accent colour and dims to grey on empty slots.
+- ✅ Visual feedback: the recalled slot briefly `scale(0.96)` + drop-shadow glow for ~280 ms (`hotkeyFlash` state) so the operator gets confirmation at a glance.
+- ✅ Footer hint updated to **"keys 1-8 · right-click for menu"**.
+- ✅ Listener skipped entirely in popout mode (`#popout=meters` — SceneBar isn't mounted there anyway).
+
 ## What's Been Implemented (2026-02-13 — Scene Memory)
 - ✅ **SceneBar** — 8 snapshot slots rendered between Channel Pills and the Inputs row on Channels tab. Each empty slot offers "+ Capture"; filled slots show the scene name in an accent colour. Last-recalled scene displays a `● LIVE` indicator.
 - ✅ **Capture / Recall / Overwrite / Rename / Delete** — left-click recalls a scene (restores mute/solo/gain across every input + output via the existing applyChannel + applyInputChannel pipeline with 5 ms click-free ramps). Right-click opens an inline menu with Overwrite (re-snapshot), Rename (inline input field), and Delete actions.
@@ -121,6 +128,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 21 (2026-02-13)**: Feature A (Input Strips) 100% (8/8). Feature B (Proactive Hint) initial-chip + apply + dismiss-persistence pass; 3 sub-scenarios (fingerprint-reset re-fire, LOW suppression, popout safety) reported failures but RCA confirms these are **test-side assumption errors** (chip is correctly hidden when active profile already matches the suggestion, regardless of routing changes). Regression: `pan-visual` testid scrolled out of viewport with new inputs row — feature still present, not a real defect. Report: `/app/test_reports/iteration_21.json`.
 - **Iteration 22 (2026-02-13)**: Scene Memory 10/11. One real bug: read-only recall blocked by inert wrapper. Report: `/app/test_reports/iteration_22.json`.
 - **Iteration 23 (2026-02-13)**: 100% (10/10) — Fix verified: removed inert wrapper around SceneBar, ID collision-proofed. All scene flows (capture, recall, LIVE indicator, rename, overwrite, delete, persistence, read-only guards) pass. Report: `/app/test_reports/iteration_23.json`.
+- **Iteration 24 (2026-02-13)**: 100% (9/9 + regression) — Hotkeys 1-8 for scene recall. Verified: hotkey badges, modifier/typing/popout suppression, flash visual, footer hint. Report: `/app/test_reports/iteration_24.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
