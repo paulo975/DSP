@@ -2,6 +2,12 @@ import React, { useRef, useState } from "react";
 import { useDsp } from "@/lib/dspStore";
 import { VERSIONS } from "@/lib/dspDefaults";
 import { audioEngine } from "@/lib/audioEngine";
+import {
+  patchBufferWithNames,
+  downloadDspFile,
+  loadSourceTemplate,
+  clearSourceTemplate,
+} from "@/lib/dspBinaryExporter";
 
 const Clock = () => {
   const [time, setTime] = React.useState(new Date());
@@ -26,6 +32,47 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint, onOpenImport }) => {
   const [fileName, setFileName] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [showVersionConfirm, setShowVersionConfirm] = useState(null);
+  const [exportMsg, setExportMsg] = useState(null);
+
+  // Track whether a hardware template is available for export. Re-checked
+  // on mount + whenever the import modal closes (parent re-renders TopBar).
+  const [template, setTemplate] = useState(() => loadSourceTemplate());
+  React.useEffect(() => {
+    const t = loadSourceTemplate();
+    setTemplate(t);
+  }, [state.inputs, state.outputs]);
+
+  const handleExport = () => {
+    setExportMsg(null);
+    const tpl = loadSourceTemplate();
+    if (!tpl) {
+      setExportMsg({ kind: "error", text: "Import a .audiosystemdsp file first to create the export template." });
+      setTimeout(() => setExportMsg(null), 3500);
+      return;
+    }
+    try {
+      const inputNames = state.inputs.map((c) => c.name);
+      const outputNames = state.outputs.map((c) => c.name);
+      const patched = patchBufferWithNames(tpl.buffer, inputNames, outputNames);
+      const base = (tpl.fileName || "export.audiosystemdsp").replace(/\.audiosystemdsp$/i, "");
+      const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
+      downloadDspFile(patched, `${base}-edited-${stamp}.audiosystemdsp`);
+      setExportMsg({ kind: "ok", text: `Exported (${patched.byteLength} B) — DSP block preserved.` });
+      setTimeout(() => setExportMsg(null), 3500);
+    } catch (e) {
+      setExportMsg({ kind: "error", text: `Export failed: ${e?.message || e}` });
+      setTimeout(() => setExportMsg(null), 4500);
+    }
+  };
+
+  const handleClearTemplate = () => {
+    if (!template) return;
+    if (!window.confirm("Discard the stored hardware template? You won't be able to export until you re-import a .audiosystemdsp file.")) return;
+    clearSourceTemplate();
+    setTemplate(null);
+    setExportMsg({ kind: "ok", text: "Template cleared." });
+    setTimeout(() => setExportMsg(null), 2500);
+  };
 
   // Derive pink noise master state from outputs:
   // "ALL ON" = every output has pinkNoise.enabled === true.
@@ -310,6 +357,29 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint, onOpenImport }) => {
             ⇩ Import
           </button>
           <button
+            onClick={handleExport}
+            disabled={!template || readOnly}
+            data-testid="open-export"
+            title={
+              template
+                ? `Export to .audiosystemdsp (template: ${template.fileName}, ${template.size} B). DSP block bytes are preserved; only channel names are patched.`
+                : "Import a .audiosystemdsp file first to enable export"
+            }
+            className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border border-[#A855F7] text-[#A855F7] hover:bg-[#A855F7] hover:text-black disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ⇧ Export
+          </button>
+          {template && (
+            <button
+              onClick={handleClearTemplate}
+              data-testid="clear-template"
+              title={`Clear stored hardware template (${template.fileName})`}
+              className="text-[10px] font-mono uppercase tracking-[0.18em] px-2 py-1.5 border border-neutral-700 text-neutral-500 hover:border-[#FF3B30] hover:text-[#FF3B30]"
+            >
+              ✕
+            </button>
+          )}
+          <button
             onClick={onOpenPresets}
             data-testid="open-presets"
             className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border border-[#FF6B00] text-[#FF6B00] hover:bg-[#FF6B00] hover:text-black"
@@ -326,6 +396,20 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint, onOpenImport }) => {
           </button>
         </div>
       </div>
+
+      {exportMsg && (
+        <div
+          className="px-4 py-1.5 text-[10px] font-mono uppercase tracking-[0.18em] border-t"
+          style={{
+            background: exportMsg.kind === "ok" ? "rgba(0,255,65,0.08)" : "rgba(255,59,48,0.08)",
+            color: exportMsg.kind === "ok" ? "#00FF41" : "#FF3B30",
+            borderColor: exportMsg.kind === "ok" ? "#00FF4133" : "#FF3B3033",
+          }}
+          data-testid="export-msg"
+        >
+          {exportMsg.text}
+        </div>
+      )}
 
       {showVersionConfirm && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center p-6" data-testid="version-confirm-modal">

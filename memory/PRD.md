@@ -26,6 +26,14 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — AudioSystem DSP File **Exporter** · round-trip safe)
+- ✅ **⇧ Export** button in TopBar produces a `.audiosystemdsp` file that the original Windows software / hardware can load back.
+- ✅ **Round-trip strategy**: the ~42 KB DSP processing block (EQ / comp / delay / routing matrix) is still proprietary and undocumented, so the exporter **never synthesises it from scratch**. Instead it patches only the channel-name bytes inside a previously imported real file (the "template").
+- ✅ **Template persistence** (`/app/frontend/src/lib/dspBinaryExporter.js`) — when the user imports a `.audiosystemdsp` file the raw buffer is base64-encoded into `localStorage` under `dsp_source_template_v1`. Export uses that template, patches the 32 input names (16-byte slot at record offset +10) and 32 output names (16-byte slot at record offset +8), and downloads a fresh file with timestamped filename.
+- ✅ **Byte-perfect preservation verified** against the real `16.audiosystemdsp` (45 128 B): file header, full 42 612-byte DSP block, and 128-byte trailer come out byte-identical to the source. Only the 32 input + 32 output name regions change.
+- ✅ **UX**: Export button stays disabled until a template exists (with tooltip telling the user to Import first). A ✕ "clear template" mini-button next to it lets the user discard the stored buffer. Confirmation/error toast appears below the header for ~3.5 s after export.
+- ✅ **End-to-end browser test** passed: Import → Apply → Close → Export → file downloaded → DSP block byte-identical.
+
 ## What's Been Implemented (2026-02-13 — AudioSystem DSP File Importer · v2 real-file verified)
 - ✅ **⇩ Import** button in TopBar opens a modal that accepts an AudioSystem DSP binary project file (`.audiosystemdsp` / `.dsp`) via drag-and-drop or file browser.
 - ✅ **Binary parser** (`/app/frontend/src/lib/dspBinaryImporter.js`) — reverse-engineered from a real 45 128-byte project file:

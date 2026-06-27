@@ -5,11 +5,13 @@
 import React from "react";
 import { useDsp } from "@/lib/dspStore";
 import { parseDantDspNames, guessCategory } from "@/lib/dspBinaryImporter";
+import { saveSourceTemplate } from "@/lib/dspBinaryExporter";
 
 const DspImportModal = ({ onClose }) => {
   const { state, updateInput, updateOutput, readOnly } = useDsp();
   const [parsed, setParsed] = React.useState(null);
   const [fileName, setFileName] = React.useState("");
+  const [sourceBuf, setSourceBuf] = React.useState(null);
   const [error, setError] = React.useState(null);
   const [applyCategories, setApplyCategories] = React.useState(true);
   const [applied, setApplied] = React.useState(false);
@@ -19,6 +21,7 @@ const DspImportModal = ({ onClose }) => {
     setError(null);
     setApplied(false);
     setParsed(null); // clear stale preview before parsing the new file
+    setSourceBuf(null);
     setFileName(file.name);
     try {
       const buf = await file.arrayBuffer();
@@ -27,6 +30,7 @@ const DspImportModal = ({ onClose }) => {
         setError(`Only ${result.totalFound} channel name(s) recognised — file may not be a valid AudioSystem DSP project.`);
         return;
       }
+      setSourceBuf(buf);
       setParsed(result);
     } catch (e) {
       setError(`Failed to read file: ${e?.message || e}`);
@@ -57,6 +61,10 @@ const DspImportModal = ({ onClose }) => {
       if (applyCategories) patch.category = guessCategory(newName);
       updateOutput(ch.id, patch);
     });
+    // Persist the raw source buffer as an export template so the user can
+    // round-trip the file back to the hardware later (only channel names
+    // are patched on export — DSP processing data stays untouched).
+    if (sourceBuf) saveSourceTemplate(sourceBuf, fileName);
     setApplied(true);
   };
 
