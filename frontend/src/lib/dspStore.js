@@ -162,6 +162,12 @@ export const DspProvider = ({ children }) => {
     audioEngine.applySoloLogic(state);
   }, [state.outputs, state.masterGain, state.masterMute, state.version]);
 
+  // Apply per-input fader/mute/solo to the input buses (zero rebuild cost).
+  useEffect(() => {
+    if (builtForVersionRef.current !== state.version) return;
+    state.inputs.forEach((i) => audioEngine.applyInputChannel(i, state));
+  }, [state.inputs, state.version]);
+
   // Routing changes
   useEffect(() => {
     if (builtForVersionRef.current !== state.version) return;

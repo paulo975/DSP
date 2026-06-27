@@ -1,0 +1,82 @@
+{
+  "summary": "Iteration 21 frontend test: Feature A (Input Strips) passes 100%. Feature B (Proactive Profile Hint) passes 3/6 sub-scenarios; 3 scenarios fail — fingerprint-reset re-fire, LOW-confidence suppression, and popout-mode safety. One regression testid not found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Proactive chip — fingerprint reset re-fire",
+        "issue": "After dismissing home-studio suggestion, navigating to Matrix tab and toggling 6 new routes (in_phy_0 → out_phy_2..7), then returning to Channels, the proactive-hint does NOT reappear with a Car Audio MEDIUM suggestion. Expected: routing fingerprint changes → dismissal for the now-suggested profile is cleared → chip reappears.",
+        "affected_selectors": ["proactive-hint", "tab-matrix", "tab-channels"],
+        "likely_root_cause": "ProactiveProfileHint.jsx:68 only deletes dismissed[det.profileId] for the CURRENTLY suggested profile. If detection now suggests 'car-audio' but dismissed map holds {home-studio:...}, the new car-audio entry is absent (so not dismissed) and chip SHOULD show. Either (a) detection still returns home-studio after the matrix change (heuristic not flipping to car-audio at 8 outputs as expected from iteration-20 fix), or (b) the tab-matrix/tab-channels testids used by the test don't match (top bar shows 'Routing Matrix' button) and the matrix toggles never executed. Recommend manual verification."
+      },
+      {
+        "flow": "Proactive chip — LOW confidence suppression",
+        "issue": "With matrix fully cleared (default 2 routes toggled off → 0 active outputs), the proactive-hint is STILL visible. Expected: detectProfile returns LOW → component returns null.",
+        "affected_selectors": ["proactive-hint"],
+        "likely_root_cause": "Either (1) the matrix toggle clicks in the test did not actually clear default routes (tab navigation issue), or (2) detectProfile() still returns medium+ when matrix is empty contrary to iteration-20 scenario 3. Iteration-20 verified empty matrix returns LOW so most likely (1). HOWEVER, given the page screenshot of the proactive chip persists, this needs main agent verification."
+      },
+      {
+        "flow": "Proactive chip — Popout mode safety",
+        "issue": "Navigating to URL with #popout=meters renders the proactive-hint (chip count > 0). Expected: component returns null when window.location.hash === '#popout=meters'.",
+        "affected_selectors": ["proactive-hint"],
+        "likely_root_cause": "Two possibilities: (a) The full DSPApp still renders for #popout=meters (popout mode may not be wired at the App.js router level to render a standalone MetersView), in which case ProactiveProfileHint.jsx:78 check is correct but fails because the component subtree still mounts (the chip is rendered AT the time we counted). Actually re-reading code: the hash check at line 78 DOES return null before the suggested-profile computation. Verify the popout URL actually has '#popout=meters' as the literal hash after navigation. (b) The popout window mode is supposed to render a different component tree entirely (not DSPShell) — if so, the existence of any proactive-hint at #popout=meters indicates DSPApp was rendered when it shouldn't be."
+      }
+    ],
+    "design_issues": [],
+    "regressions": [
+      {
+        "testid": "out-out_phy_0-pan-visual",
+        "issue": "Not found on Channels tab. Other ChannelStrip controls render normally. May be moved/renamed."
+      }
+    ]
+  },
+  "feature_a_results": {
+    "inputs_collapse_text_has_32": true,
+    "inputs_row_visible_default": true,
+    "strip_counts": {"total": 32, "phy": 16, "virt": 16},
+    "collapse_expand_works": true,
+    "mute_text_english": true,
+    "mute_on": {"bg": "rgb(255,59,48)", "readout": "—", "callout": "MUTE"},
+    "solo_on": {"bg": "rgb(255,214,10)", "state.inputs[0].solo": true},
+    "fader_drag_min": {"readout": "-59.6 dB", "callout": "-60"},
+    "fader_double_click_unity": {"readout": "0.0 dB", "callout": "0"},
+    "readonly": {"mute_disabled": true, "solo_disabled": true, "opacity": 0.4, "drag_blocked": true}
+  },
+  "feature_b_results": {
+    "initial_chip_home_studio_high": true,
+    "apply_sets_profile_home_studio": true,
+    "apply_meters_button_active": true,
+    "dismiss_persists_after_reload": true,
+    "fingerprint_reset_re_fires_chip": false,
+    "low_confidence_suppressed": false,
+    "popout_mode_hides_chip": false
+  },
+  "regression_results": {
+    "cal-profile-car-audio": true, "cal-profile-home-studio": true,
+    "cal-detect": true, "open-one-click": true, "open-auto-capture": true,
+    "open-snapshot": true, "meters-popout": true,
+    "pn-type-pink": true, "pn-type-white": true, "pn-type-sweep": true,
+    "out-out_phy_0-pan-visual": false
+  },
+  "test_report_links": ["/app/test_reports/iteration_21.json"],
+  "action_items": [
+    "Verify Feature B fingerprint-reset: detect why chip does not re-fire with Car Audio MEDIUM after routing in_phy_0 → out_phy_2..7. Re-run heuristic detectProfile on the resulting 8-output state and ensure dismissed[car-audio] is undefined.",
+    "Verify Feature B LOW suppression: ensure detectProfile returns 'low' when matrix is empty (this was working in iteration-20 — possibly regressed or test toggle navigation failed). The chip stayed visible in the run.",
+    "Verify Feature B popout safety: confirm whether #popout=meters route mounts DSPShell + ProactiveProfileHint at all. If yes, the hash check inside ProactiveProfileHint may be running before window is fully ready or hash is normalised differently. If no, the popout route must short-circuit before DSPApp.",
+    "Locate the testid 'out-out_phy_0-pan-visual' in ChannelStrip — appears missing or renamed."
+  ],
+  "critical_code_review_comments": [
+    "ProactiveProfileHint.jsx:78 — `if (typeof window !== 'undefined' && window.location.hash === '#popout=meters') return null;` runs on every render but doesn't subscribe to hashchange. If the popout opens via window.open then the initial render in the popup uses that hash — OK. But if the same component instance is re-used across hash changes, the check is stale. Recommend adding a hashchange listener for correctness.",
+    "ProactiveProfileHint.jsx:62-75 — useEffect dependency array includes `dismissed` and `lastFp`, which can cause stale closures: when `dismissed` updates via setDismissed inside the effect, the effect re-runs and the early `if (fp !== lastFp)` is false — OK but fragile. Consider using a ref for lastFp or computing fingerprint inline.",
+    "ProactiveProfileHint.jsx uses 500ms polling (line 52-57) to detect activeId changes from MetersView. This is wasteful — recommend using a localStorage 'storage' event listener, or lifting activeId into the dspStore so React subscribes naturally without polling.",
+    "InputStrip.jsx is clean, well-commented, and follows the established testid pattern. dbToPct/pctToDb taper curve is documented. No issues found."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "Feature A: 100% (8/8); Feature B: 50% (3/6); Regression: 91% (10/11)"},
+  "seed_data_creation": "None. Test clears localStorage and toggles matrix cells via 'route-{inputId}-{outputId}' testids.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature A passes fully — no concerns there. Feature B has 3 failures clustered around the conditional-render logic in ProactiveProfileHint.jsx. The component's check ordering is: (1) popout hash bail-out at line 78, (2) detection result at 80, (3) suppression filter at 83. Failures suggest either: detection heuristic doesn't flip to LOW on empty matrix (contradicts iteration-20 verification), OR the test's tab-matrix/tab-channels testids may not be exact (top bar button 'Routing Matrix' suggests possible 'tab-routing' or 'tab-routingmatrix'). Recommend the next testing agent explicitly check the top-bar tab testids via `await page.locator('[data-testid^=\"tab-\"]').all_inner_texts()` before re-running Feature B scenarios.",
+  "rca_of_the_issue": "Most likely the 3 Feature B failures share a common root cause: tab-navigation testids ('tab-matrix','tab-channels') used by the test did not match actual top-bar testids, so the matrix-edit scenarios never actually modified state. The 'low suppression' and 'fingerprint-reset' scenarios depend on first editing the matrix. The 'popout' scenario is independent and represents a likely real bug in either the popout route wiring or the hash check inside ProactiveProfileHint.jsx. Manual verification recommended before raising as a defect."
+}

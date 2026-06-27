@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { DspProvider, useDsp } from "@/lib/dspStore";
 import TopBar from "@/components/dsp/TopBar";
 import ChannelStrip from "@/components/dsp/ChannelStrip";
+import InputStrip from "@/components/dsp/InputStrip";
 import MatrixRouter from "@/components/dsp/MatrixRouter";
 import MetersView from "@/components/dsp/MetersView";
 import EqEditor from "@/components/dsp/EqEditor";
@@ -10,11 +11,15 @@ import PresetManager from "@/components/dsp/PresetManager";
 import SelectedChannelPanel from "@/components/dsp/SelectedChannelPanel";
 import ChannelPills from "@/components/dsp/ChannelPills";
 import ChannelMapPrint from "@/components/dsp/ChannelMapPrint";
+import ProactiveProfileHint from "@/components/dsp/ProactiveProfileHint";
 
 const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBank }) => {
   const { state, readOnly } = useDsp();
   const phyOuts = state.outputs.filter((o) => o.kind === "out_phy");
   const virtOuts = state.outputs.filter((o) => o.kind === "out_virt");
+  const phyIns = state.inputs.filter((i) => i.kind === "in_phy");
+  const virtIns = state.inputs.filter((i) => i.kind === "in_virt");
+  const [showInputs, setShowInputs] = useState(true);
 
   return (
     <div className="h-full flex flex-col bg-[#0A0A0A]" data-testid="channels-view">
@@ -36,6 +41,27 @@ const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBan
         bank={bank}
         setBank={setBank}
       />
+
+      {/* Inputs section — collapsible analog-style input strips */}
+      <div inert={readOnly || undefined} className="border-b border-neutral-900">
+        <button
+          onClick={() => setShowInputs((v) => !v)}
+          data-testid="inputs-collapse"
+          className="w-full px-3 py-1.5 bg-[#00B7FF] text-black text-[10px] font-mono font-bold uppercase tracking-[0.2em] flex items-center justify-between hover:bg-[#33CBFF] transition-colors"
+        >
+          <span>Inputs · {phyIns.length + virtIns.length}ch</span>
+          <span>{showInputs ? "▼" : "▶"}</span>
+        </button>
+        {showInputs && (
+          <div className="overflow-x-auto bg-[#080808]" data-testid="inputs-row">
+            <div className="flex h-[360px]">
+              {phyIns.map((i) => <InputStrip key={i.id} input={i} />)}
+              <div className="w-1 bg-[#FF8533]/40" />
+              {virtIns.map((i) => <InputStrip key={i.id} input={i} />)}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Channel strips below — also inert during read-only */}
       <div inert={readOnly || undefined} className="overflow-x-auto grow">
@@ -93,6 +119,7 @@ const DSPShell = () => {
   return (
     <div className="h-screen flex flex-col bg-[#0A0A0A] text-white dsp-shell" data-testid="dsp-shell">
       <TopBar tab={tab} setTab={setTab} onOpenPresets={() => setPresetsOpen(true)} onOpenPrint={() => setPrintOpen(true)} />
+      <ProactiveProfileHint />
       {readOnly && (
         <div
           className="px-4 py-1 text-center text-[10px] font-mono uppercase tracking-[0.2em] font-bold border-b"

@@ -190,6 +190,7 @@ class AudioEngine {
     // 4. Wire file source (if loaded) into IN1/IN2 input buses.
     this.wireFileSource(state);
     // 5. Apply parameters.
+    state.inputs.forEach((i) => this.applyInputChannel(i, state));
     state.outputs.forEach((o) => this.applyChannel(o));
     this.applyMaster(state.masterGain, state.masterMute);
   }
@@ -311,6 +312,19 @@ class AudioEngine {
   }
 
   // ---------- Apply parameter updates ----------
+  // Per-input fader/mute applied to the input bus gain. Solo on an input is
+  // honoured at the bus level (mute all non-solo inputs).
+  applyInputChannel(input, state) {
+    const bus = this.inputBuses[input.id];
+    if (!bus || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const tc = 0.005;
+    let lin = input.mute ? 0 : dbToGain(input.gain || 0);
+    // Solo logic: if ANY input is soloed, mute every non-soloed input.
+    if (state?.inputs?.some((i) => i.solo) && !input.solo) lin = 0;
+    bus.gain.setTargetAtTime(lin, now, tc);
+  }
+
   applyChannel(out) {
     const chain = this.outputChains[out.id];
     if (!chain || !this.ctx) return;
@@ -319,9 +333,7 @@ class AudioEngine {
 
     // gain & mute
     const linGain = out.mute ? 0 : dbToGain(out.gain);
-    chain.input.gain.setTargetAtTime(linGain, now, tc);
-
-    // crossover
+    chain.input.gain.setTargetAtTime(linGain, now, tc);    // crossover
     chain.hpf.frequency.setTargetAtTime(
       out.crossover.hpf.enabled ? out.crossover.hpf.freq : 10,
       now,
