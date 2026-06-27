@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 24 (Hotkeys 1-8 for Scene Recall) fully validated via end-to-end Playwright. All 9 brief steps + regression PASS. SceneBar.jsx window keydown listener correctly: (a) recalls scene N on digit press, (b) ignores empty slots, (c) ignores INPUT/TEXTAREA/contenteditable focus (rename '5 Encore' stayed in input, never triggered scene-5 recall), (d) ignores Ctrl/Meta/Alt modifier combos, (e) is inert in #popout=meters (App.js early-returns to MetersView so SceneBar isn't even mounted), (f) drives a brief transform: scale(0.96) + drop-shadow filter flash that reverts to scale(1) within ~280ms. Hotkey badges (scene-hotkey-1..8) all present with correct digits. Footer reads 'keys 1-8 · right-click for menu' with text-transform: uppercase in computed style. Mouse-click recall and right-click menu regressions also pass.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SceneBar.jsx hotkey listener correctly skips contenteditable/INPUT/TEXTAREA/SELECT and modifier combos — robust implementation.",
+    "Listener depends on `scenes` array in useEffect deps; this causes re-binding on every scene mutation. Functionally fine, but a useRef + stable handler would avoid churn. Not blocking.",
+    "App.js `isPopout` is computed once at render time from window.location.hash and lazy-requires MetersView/DspProvider. Works on fresh page loads (Playwright `goto` to popout URL renders correctly), but in-app hash changes during runtime won't toggle popout mode — by design. Mention noted for future.",
+    "The popout window relies on a separate localStorage-synced DspProvider; pressing digits in the popout never throws because SceneBar isn't mounted there. Verified.",
+    "Flash timing uses window.setTimeout(280) with a functional setHotkeyFlash to avoid stale closures — good defensive code."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "100%" },
+  "seed_data_creation": "Two scenes created during the test (Scene 1 later renamed to '5 Encore', Scene 2). Ephemeral in localStorage; cleared on next test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "localStorage key for DSP state is 'dsp_state_v1' (not 'dsp-state-v1'). Popout routing in App.js evaluates window.location.hash only on initial render — to test popout mode in Playwright, use page.goto(url+'#popout=meters') as a FRESH navigation (do NOT just append hash via page.goto from same origin without reload, or React won't re-evaluate isPopout). To observe flash transform, poll the inline style.transform of scene-recall-{id} within ~280ms after keydown; the React update + setTimeout(280) means revert lands ~280ms AFTER react first paints the flash. Mute testid format: in-in_phy_{n}-mute (n is 0-indexed).",
+  "rca of the issue": "n/a — no bugs in iteration 24."
+}

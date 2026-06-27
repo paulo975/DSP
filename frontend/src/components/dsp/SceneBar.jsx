@@ -24,9 +24,42 @@ const SceneBar = () => {
   const [editingId, setEditingId] = React.useState(null);
   const [draftName, setDraftName] = React.useState("");
   const [menuFor, setMenuFor] = React.useState(null);
+  const [hotkeyFlash, setHotkeyFlash] = React.useState(null); // last slot index hit
 
   // Render exactly MAX_SLOTS cells — first N are filled, rest are empty.
   const slots = Array.from({ length: MAX_SLOTS }, (_, i) => scenes[i] || null);
+
+  // Keyboard hotkeys: digits 1–8 recall the corresponding scene slot. Skipped
+  // when the focus is on an editable element so we don't hijack typing, and in
+  // popout mode (no scenes there).
+  React.useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (window.location.hash === "#popout=meters") return undefined;
+
+    const isEditable = (el) => {
+      if (!el) return false;
+      if (el.isContentEditable) return true;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    };
+
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isEditable(e.target)) return;
+      const n = parseInt(e.key, 10);
+      if (!Number.isInteger(n) || n < 1 || n > MAX_SLOTS) return;
+      const idx = n - 1;
+      const scene = scenes[idx];
+      if (!scene) return;
+      e.preventDefault();
+      recallScene(scene.id);
+      setHotkeyFlash(idx);
+      window.setTimeout(() => setHotkeyFlash((cur) => (cur === idx ? null : cur)), 280);
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [scenes, recallScene]);
 
   const handleCapture = (slotIdx) => {
     if (readOnly) return;
@@ -63,6 +96,18 @@ const SceneBar = () => {
       </div>
 
       {slots.map((scene, idx) => {
+        // Small hotkey badge (top-right corner of each slot) — discoverable
+        // keyboard hint that survives both empty and filled states.
+        const hotkeyBadge = (color) => (
+          <span
+            className="absolute top-0.5 right-1 text-[8px] font-mono font-bold leading-none tabular-nums px-1 py-0.5 rounded-sm pointer-events-none"
+            style={{ background: "#000a", color, border: `1px solid ${color}66` }}
+            data-testid={`scene-hotkey-${idx + 1}`}
+          >
+            {idx + 1}
+          </span>
+        );
+
         if (!scene) {
           return (
             <button
@@ -70,14 +115,16 @@ const SceneBar = () => {
               onClick={() => handleCapture(idx)}
               disabled={readOnly}
               data-testid={`scene-slot-empty-${idx}`}
-              className="flex-1 min-w-[80px] border-r border-neutral-900 text-[10px] font-mono uppercase tracking-[0.18em] text-neutral-600 hover:bg-[#141414] hover:text-neutral-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="relative flex-1 min-w-[80px] border-r border-neutral-900 text-[10px] font-mono uppercase tracking-[0.18em] text-neutral-600 hover:bg-[#141414] hover:text-neutral-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               + Capture
+              {hotkeyBadge("#444")}
             </button>
           );
         }
 
         const isLive = scene.id === lastId;
+        const flashed = hotkeyFlash === idx;
 
         return (
           <div
@@ -104,11 +151,13 @@ const SceneBar = () => {
                 onClick={() => handleRecall(scene)}
                 onContextMenu={(e) => { e.preventDefault(); setMenuFor(menuFor === scene.id ? null : scene.id); }}
                 data-testid={`scene-recall-${scene.id}`}
-                className="w-full h-full flex flex-col items-center justify-center text-[11px] font-bold uppercase tracking-[0.14em] transition-colors hover:brightness-125"
+                className="w-full h-full flex flex-col items-center justify-center text-[11px] font-bold uppercase tracking-[0.14em] transition-all hover:brightness-125"
                 style={{
                   background: isLive ? scene.color : `${scene.color}1f`,
                   color: isLive ? "#000" : scene.color,
                   boxShadow: isLive ? `inset 0 0 0 2px ${scene.color}` : "none",
+                  transform: flashed ? "scale(0.96)" : "scale(1)",
+                  filter: flashed ? `drop-shadow(0 0 12px ${scene.color})` : "none",
                 }}
               >
                 <span className="truncate max-w-full px-2" title={scene.name}>{scene.name}</span>
@@ -117,6 +166,7 @@ const SceneBar = () => {
                 )}
               </button>
             )}
+            {hotkeyBadge(isLive ? "#000" : scene.color)}
 
             {menuFor === scene.id && (
               <div
@@ -155,7 +205,7 @@ const SceneBar = () => {
       })}
 
       <div className="px-3 flex items-center text-[9px] font-mono uppercase tracking-[0.18em] text-neutral-600">
-        right-click for menu
+        keys 1-8 · right-click for menu
       </div>
     </div>
   );
