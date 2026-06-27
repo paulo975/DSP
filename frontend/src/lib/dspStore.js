@@ -116,7 +116,9 @@ const reducer = (state, action) => {
     case "createScene": {
       const captureCh = (c) => ({ id: c.id, mute: c.mute, gain: c.gain, solo: c.solo });
       const scene = {
-        id: action.id || `scene-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+        // crypto.randomUUID gives absolute uniqueness — Date.now()+Math.random()
+        // burst-safe but theoretically collidable.
+        id: action.id || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `scene-${Date.now()}-${Math.floor(Math.random() * 1e6)}`),
         name: action.name || `Scene ${(state.scenes?.length || 0) + 1}`,
         color: action.color || SCENE_COLORS[(state.scenes?.length || 0) % SCENE_COLORS.length],
         inputs: state.inputs.map(captureCh),

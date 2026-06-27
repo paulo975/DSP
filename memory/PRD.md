@@ -26,6 +26,12 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Scene Memory)
+- ✅ **SceneBar** — 8 snapshot slots rendered between Channel Pills and the Inputs row on Channels tab. Each empty slot offers "+ Capture"; filled slots show the scene name in an accent colour. Last-recalled scene displays a `● LIVE` indicator.
+- ✅ **Capture / Recall / Overwrite / Rename / Delete** — left-click recalls a scene (restores mute/solo/gain across every input + output via the existing applyChannel + applyInputChannel pipeline with 5 ms click-free ramps). Right-click opens an inline menu with Overwrite (re-snapshot), Rename (inline input field), and Delete actions.
+- ✅ **Read-only safety with viewing exemption** — capture/overwrite/rename/delete are guarded; **recall stays clickable** (analogous to `loadPresetState`) so an integrator can step through scenes even with the app locked. The SceneBar is intentionally placed OUTSIDE the read-only `inert` wrapper.
+- ✅ Persistence in `localStorage.dsp_state_v1` (scenes are now part of the dsp state). Migration adds empty `scenes: []` to older saved states. Scene IDs use `crypto.randomUUID()` (fallback to `Date.now()+random`) for collision-proof uniqueness on burst captures.
+
 ## What's Been Implemented (2026-02-13 — Input Strips + Proactive Profile Hint)
 - ✅ **Analog Input Strips** — new collapsible "INPUTS · 32 ch" row above the Physical Outputs section. Each strip has: chunky header pill (IN N), large **MUTE** button (English, red glow when active), smaller **SOLO** pill (yellow when active), pointer-drag vertical fader with white/red analog cap, value callout that follows the cap, tick scale (+12 / +6 / +3 / 0 / −3 / −6 / −12 / −30 / −60), zero-dB reference line, dB readout, and live per-input bus meter on the right.
 - ✅ **Audio engine wiring**: new `audioEngine.applyInputChannel(input, state)` sets `inputBuses[id].gain` based on per-input mute/gain. Solo logic mutes all non-soloed inputs at the bus level. A new `useEffect` in DspProvider fires this for every input on `state.inputs/version` change — zero-rebuild, click-free updates via `setTargetAtTime`.
@@ -113,6 +119,8 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 19 (2026-02-13)**: 7/8 — Profile Auto-Detector implemented; 1 heuristic edge case (low-delay bonus at 8 routed outputs created a tie). Report: `/app/test_reports/iteration_19.json`.
 - **Iteration 20 (2026-02-13)**: 100% passed — 1-line fix verified: gated home-studio low-delay bonus by `activeCount ≤ 4`. All 4 detection scenarios (default HIGH, 8-route MEDIUM, empty LOW, smoke) pass. Report: `/app/test_reports/iteration_20.json`.
 - **Iteration 21 (2026-02-13)**: Feature A (Input Strips) 100% (8/8). Feature B (Proactive Hint) initial-chip + apply + dismiss-persistence pass; 3 sub-scenarios (fingerprint-reset re-fire, LOW suppression, popout safety) reported failures but RCA confirms these are **test-side assumption errors** (chip is correctly hidden when active profile already matches the suggestion, regardless of routing changes). Regression: `pan-visual` testid scrolled out of viewport with new inputs row — feature still present, not a real defect. Report: `/app/test_reports/iteration_21.json`.
+- **Iteration 22 (2026-02-13)**: Scene Memory 10/11. One real bug: read-only recall blocked by inert wrapper. Report: `/app/test_reports/iteration_22.json`.
+- **Iteration 23 (2026-02-13)**: 100% (10/10) — Fix verified: removed inert wrapper around SceneBar, ID collision-proofed. All scene flows (capture, recall, LIVE indicator, rename, overwrite, delete, persistence, read-only guards) pass. Report: `/app/test_reports/iteration_23.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
