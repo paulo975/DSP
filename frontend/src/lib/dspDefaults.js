@@ -80,6 +80,8 @@ export const buildInitialState = (versionId) => {
     matrix,
     masterGain: 0,
     masterMute: false,
+    scenes: [],
+    lastRecalledSceneId: null,
   };
 };
 

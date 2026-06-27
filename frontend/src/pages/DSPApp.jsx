@@ -12,6 +12,7 @@ import SelectedChannelPanel from "@/components/dsp/SelectedChannelPanel";
 import ChannelPills from "@/components/dsp/ChannelPills";
 import ChannelMapPrint from "@/components/dsp/ChannelMapPrint";
 import ProactiveProfileHint from "@/components/dsp/ProactiveProfileHint";
+import SceneBar from "@/components/dsp/SceneBar";
 
 const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBank }) => {
   const { state, readOnly } = useDsp();
@@ -41,6 +42,11 @@ const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBan
         bank={bank}
         setBank={setBank}
       />
+
+      {/* Scene Memory bar — 8 slots, live recall, right-click for menu */}
+      <div inert={readOnly || undefined}>
+        <SceneBar />
+      </div>
 
       {/* Inputs section — collapsible analog-style input strips */}
       <div inert={readOnly || undefined} className="border-b border-neutral-900">

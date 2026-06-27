@@ -7,6 +7,10 @@ import { audioEngine } from "./audioEngine";
 const STORAGE_KEY = "dsp_state_v1";
 const PRESETS_KEY = "dsp_presets_v1";
 
+// Default scene accent palette — picked so each scene reads clearly when
+// arranged in a row of 8 slots.
+const SCENE_COLORS = ["#FF6B00", "#00B7FF", "#FFD60A", "#FF3B30", "#00FF41", "#FF7AC6", "#A855F7", "#22D3EE"];
+
 // Popout window mode: the meters pop-out shouldn't run its own audio graph or
 // overwrite localStorage. It only mirrors state from the main window via the
 // `storage` event + meter levels via BroadcastChannel (see audioEngine).
@@ -34,6 +38,10 @@ const loadFromStorage = () => {
       ...i,
       description: i.description ?? "",
     }));
+    // Scenes were added later — default to an empty list to keep older saves
+    // loadable.
+    parsed.scenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
+    parsed.lastRecalledSceneId = parsed.lastRecalledSceneId ?? null;
     return parsed;
   } catch (err) {
     console.warn("[dspStore] Failed to load state from localStorage:", err);
@@ -103,6 +111,49 @@ const reducer = (state, action) => {
         },
       }));
       return { ...state, outputs };
+    }
+    // ---------- Scenes (snapshot recall of mute/solo/gain across all channels) ----------
+    case "createScene": {
+      const captureCh = (c) => ({ id: c.id, mute: c.mute, gain: c.gain, solo: c.solo });
+      const scene = {
+        id: action.id || `scene-${Date.now()}`,
+        name: action.name || `Scene ${(state.scenes?.length || 0) + 1}`,
+        color: action.color || SCENE_COLORS[(state.scenes?.length || 0) % SCENE_COLORS.length],
+        inputs: state.inputs.map(captureCh),
+        outputs: state.outputs.map(captureCh),
+        createdAt: new Date().toISOString(),
+      };
+      return { ...state, scenes: [...(state.scenes || []), scene] };
+    }
+    case "overwriteScene": {
+      const captureCh = (c) => ({ id: c.id, mute: c.mute, gain: c.gain, solo: c.solo });
+      const scenes = (state.scenes || []).map((s) =>
+        s.id === action.id
+          ? { ...s, inputs: state.inputs.map(captureCh), outputs: state.outputs.map(captureCh), updatedAt: new Date().toISOString() }
+          : s,
+      );
+      return { ...state, scenes };
+    }
+    case "renameScene": {
+      const scenes = (state.scenes || []).map((s) =>
+        s.id === action.id ? { ...s, name: action.name } : s,
+      );
+      return { ...state, scenes };
+    }
+    case "deleteScene": {
+      return {
+        ...state,
+        scenes: (state.scenes || []).filter((s) => s.id !== action.id),
+        lastRecalledSceneId: state.lastRecalledSceneId === action.id ? null : state.lastRecalledSceneId,
+      };
+    }
+    case "recallScene": {
+      const scene = (state.scenes || []).find((s) => s.id === action.id);
+      if (!scene) return state;
+      const merge = (cur, saved) => (saved ? { ...cur, mute: saved.mute, gain: saved.gain, solo: saved.solo } : cur);
+      const inputs = state.inputs.map((i) => merge(i, scene.inputs.find((x) => x.id === i.id)));
+      const outputs = state.outputs.map((o) => merge(o, scene.outputs.find((x) => x.id === o.id)));
+      return { ...state, inputs, outputs, lastRecalledSceneId: action.id };
     }
     default:
       return state;
@@ -201,6 +252,14 @@ export const DspProvider = ({ children }) => {
       setMaster: guard((patch) => dispatch({ type: "setMaster", patch })),
       resetChannel: guard((id) => dispatch({ type: "resetChannel", id })),
       setAllPinkNoise: guard((enabled, level, noiseType) => dispatch({ type: "setAllPinkNoise", enabled, level, noiseType })),
+      // Scene memory — see reducer cases above.
+      createScene: guard((name, color) => dispatch({ type: "createScene", name, color })),
+      overwriteScene: guard((id) => dispatch({ type: "overwriteScene", id })),
+      renameScene: guard((id, name) => dispatch({ type: "renameScene", id, name })),
+      deleteScene: guard((id) => dispatch({ type: "deleteScene", id })),
+      // Recall is allowed in read-only because it's a "viewing" action of a stored
+      // snapshot — same logic as loadPresetState. (Could be guarded if needed.)
+      recallScene: (id) => dispatch({ type: "recallScene", id }),
       // Unguarded: user-initiated viewing actions.
       loadPresetState: (s) => dispatch({ type: "loadPreset", state: s }),
     };

@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend testing of Iteration 22 'Scene Memory'. Validated SceneBar with 8 slots, capture/recall/rename/overwrite/delete flows, LIVE indicator, persistence, read-only behavior, and regression of prior features. 10/11 review-request bullets pass cleanly. One concern observed around read-only RECALL behavior via UI click.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Read-only RECALL via UI click",
+        "issue": "Per review request, RECALL should be intentionally allowed in read-only mode (analogous to loadPresetState). Code shows recallScene is intentionally NOT wrapped in the read-only guard. However, when toggling readonly-toggle ON and clicking [data-testid='scene-recall-{id}'] (both normal and force=True), state.lastRecalledSceneId did NOT change from null to the scene id. The button is not visually disabled. State change via dispatch appears to not happen on UI click while readOnly=true. Needs investigation - possibly an overlay/pointer-events issue from the read-only banner or some wrapper, or some unintended early-return.",
+        "affected_selectors": ["[data-testid^='scene-recall-']", "[data-testid='readonly-toggle']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "critical_code_review_comments": [
+    "Testid naming inconsistency: output mute uses pattern `out-${kind}-${index}-mute` (e.g. 'out-out_phy-0-mute' in /app/frontend/src/components/dsp/ChannelStrip.jsx:51) while review request and overall convention (InputStrip uses `in-${input.id}-mute` => 'in-in_phy_0-mute') would suggest 'out-out_phy_0-mute'. Recommend unifying to id-based testids across input + output strips for consistency and matching documentation.",
+    "SceneBar.jsx handleCapture comment says 'if filled, overwrite that scene' but the code only ever calls createScene — empty slots are the only path that triggers handleCapture (filled slots render the recall button). Dead branch in the comment; consider removing the stale comment to avoid confusion.",
+    "SceneBar menu uses onMouseLeave to dismiss, which is fragile on touch devices and doesn't dismiss on outside click. Consider adding a global click-outside listener for the open menu.",
+    "Scene id generation uses `scene-${Date.now()}` (dspStore.js line 119). Rapid consecutive captures within the same millisecond would collide. Consider Date.now() + Math.random() or crypto.randomUUID()."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Investigate why clicking [data-testid='scene-recall-{id}'] in read-only mode does not update state.lastRecalledSceneId / does not actually recall the scene (recallScene is correctly unguarded in store; UI path may be the culprit).",
+    "Normalize output testid pattern to match input strips (use channel.id) so docs and conventions stay aligned."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "~95%"},
+  "seed_data_creation": "Tests cleared localStorage and created scenes at runtime; no persistent seed data left behind.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 22 SceneBar is largely functional. The output mute testid is `out-out_phy-0-mute` (kind-index pattern), NOT `out-out_phy_0-mute` as the review request implied. Use this when verifying overwrite/recall affecting outputs. All core scene flows (capture, recall with LIVE, rename, overwrite, delete, persistence) verified working. Only outstanding issue: read-only RECALL via direct UI click did not update lastRecalledSceneId in our observation — the dispatch is unguarded in code, so this may be a click-routing/overlay issue worth E1's attention.",
+  "rca of the issue": "Read-only recall: code path in dspStore.js line 262 (`recallScene: (id) => dispatch(...)`) is intentionally unguarded. The SceneBar recall <button> is also not given a disabled attribute when readOnly is true. Yet UI click in readOnly state did not update lastRecalledSceneId. Suspected causes: (1) the channels-view container or read-only banner may intercept pointer events, (2) some parent component might be re-rendering the SceneBar without the recallScene closure, (3) Playwright click landing on a wrong element. Recommended reproduction: in browser, toggle read-only, then click a filled scene slot. Check React DevTools state for lastRecalledSceneId."
+}
