@@ -14,7 +14,6 @@ const MAGIC = [0xB0, 0xE0, 0xE3];
 const TERM = [0xE8, 0x40, 0xED];
 const NAME_MAX_LEN = 32; // generous — names observed are <= ~12 chars
 const NAME_MIN_OFFSET = 3; // skip the magic itself
-const NAME_TRIM_OFFSET = 6; // observed: the name starts ~6 spaces after the magic
 
 // Find every magic-prefixed name record in the buffer and return them as
 // trimmed ASCII strings in file order.
@@ -45,11 +44,19 @@ const findAllNames = (bytes) => {
 export const parseDantDspNames = (arrayBuffer) => {
   const bytes = new Uint8Array(arrayBuffer);
   const all = findAllNames(bytes);
-  // Defensive: pad to multiples of 32 if needed (some files might be 16+16
-  // depending on configuration). The Channels view assumes 32+32, so we
-  // slice to that length.
-  const inputs = all.slice(0, 32);
-  const outputs = all.slice(32, 64);
+  // Real AudioSystem DSP exports are 32 inputs + 32 outputs (64 records).
+  // For shorter/test files, do a half-split so the operator sees both
+  // columns populated instead of all names piling onto inputs.
+  let inputs;
+  let outputs;
+  if (all.length >= 64) {
+    inputs = all.slice(0, 32);
+    outputs = all.slice(32, 64);
+  } else {
+    const half = Math.ceil(all.length / 2);
+    inputs = all.slice(0, half);
+    outputs = all.slice(half);
+  }
   return {
     inputs,
     outputs,

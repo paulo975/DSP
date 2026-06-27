@@ -18,13 +18,13 @@ const DspImportModal = ({ onClose }) => {
     if (!file) return;
     setError(null);
     setApplied(false);
+    setParsed(null); // clear stale preview before parsing the new file
     setFileName(file.name);
     try {
       const buf = await file.arrayBuffer();
       const result = parseDantDspNames(buf);
       if (result.totalFound < 2) {
         setError(`Only ${result.totalFound} channel name(s) recognised — file may not be a valid AudioSystem DSP project.`);
-        setParsed(null);
         return;
       }
       setParsed(result);

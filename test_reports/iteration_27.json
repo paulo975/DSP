@@ -1,0 +1,25 @@
+{
+  "summary": "Retest of iteration 26 parser fix (dspBinaryImporter.js half-split + DspImportModal stale-state reset). All three target scenarios PASS: (1) the synthetic 4+4 .dsp file now correctly splits 4 names into inputs and 4 names into outputs both in the preview UI and in the applied dsp state (state.outputs[0..3].name = ['SUB L','SUB R','FRONT L','FRONT R'], state.outputs[0].category = 'bass'); (2) a synthetic 64-record file still respects the exact 32/32 boundary — inputs are INPUT_1..INPUT_32 and outputs are OUTPUT_1..OUTPUT_32 with no mis-bucketing; (3) dropping an invalid 14-byte text file after a valid file correctly clears the stale preview — dsp-import-found and dsp-import-preview are removed from the DOM, the error banner appears, and the apply button is disabled. Iteration 26 happy-path regression coverage (bad-file error, apply disabled, modal close) also re-verified incidentally. Fix is fully working.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "dspBinaryImporter.js: half-split heuristic correctly unblocks <64-record test files while preserving the 32/32 boundary for real 64-record exports. The if/else branch is small and clear — no further changes needed.",
+    "DspImportModal.handleFile resets parsed via setParsed(null) on entry — confirmed in DOM that dsp-import-found is removed when a subsequent file is invalid.",
+    "Pre-existing minor: NAME_TRIM_OFFSET dead-code note from iteration 26 — no longer present (NAME_MIN_OFFSET is used). Worth a quick scan to confirm no other unused exports remain.",
+    "Minor (carry-over): guessCategory() is invoked twice per preview row (badge text + visibility check). At 64 rows this is still negligible; could memoise via React.useMemo if the parser ever grows to hundreds of names."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "n/a",
+  "seed_data_creation": "All synthetic .dsp payloads built in-browser via page.evaluate() — (a) 4+4 file: 254 bytes with names ['KICK','SNARE','BASS DI','VOX LD','SUB L','SUB R','FRONT L','FRONT R']; (b) 64-record file: 2062 bytes with names ['INPUT_1'..'INPUT_32','OUTPUT_1'..'OUTPUT_32']; (c) invalid 14-byte text 'not a dsp file'. Record format: MAGIC[0xB0,0xE0,0xE3] + 6 spaces + name + 4 nulls + TERM[0xE8,0x40,0xED] + 8 nulls. localStorage cleared between tests via localStorage.removeItem('dsp_state_v1') + reload.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 26 bug fixed and verified. Observed evidence from this run: TEST1 dsp-import-found='8', preview inputs=['KICK','SNARE','BASS DI','VOX LD'], preview outputs=['SUB L','SUB R','FRONT L','FRONT R'], post-apply state.outputs first-4 names match exactly, state.outputs[0].category='bass'. TEST2 dsp-import-found='64', preview inputs 32 items INPUT_1..INPUT_32, preview outputs 32 items OUTPUT_1..OUTPUT_32, state.inputs[0..7]=['INPUT_1'..'INPUT_8'], state.outputs[0..7]=['OUTPUT_1'..'OUTPUT_8']. TEST3 stale preview: dsp-import-found exists? False after invalid file. The 32/32 boundary path (all.length >= 64) and the half-split path (Math.ceil(N/2)) both exercised. No further work needed on the importer for this round.",
+  "rca of the issue": "Original bug (iteration 26): parseDantDspNames hard-coded inputs=slice(0,32), outputs=slice(32,64), so any <32-record test file dumped everything onto inputs and left outputs untouched. Fix verified: lines 52-59 in /app/frontend/src/lib/dspBinaryImporter.js now branch on `all.length >= 64` — full-size exports keep the exact 32/32 split, smaller test files use `const half = Math.ceil(all.length/2); inputs=slice(0,half); outputs=slice(half)`. Companion fix in DspImportModal.jsx handleFile() (line 21) now calls setParsed(null) before parsing a new file, ensuring any prior preview is cleared even when the new file errors out — confirmed by the absence of dsp-import-found in the DOM after dropping an invalid file on top of a valid one."
+}
