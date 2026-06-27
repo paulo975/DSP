@@ -13,6 +13,7 @@ import ChannelPills from "@/components/dsp/ChannelPills";
 import ChannelMapPrint from "@/components/dsp/ChannelMapPrint";
 import ProactiveProfileHint from "@/components/dsp/ProactiveProfileHint";
 import SceneBar from "@/components/dsp/SceneBar";
+import DspImportModal from "@/components/dsp/DspImportModal";
 
 const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBank }) => {
   const { state, readOnly } = useDsp();
@@ -120,13 +121,14 @@ const DSPShell = () => {
   const [compOutId, setCompOutId] = useState(null);
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [bank, setBank] = useState("phy");
   const { readOnly } = useDsp();
 
   return (
     <div className="h-screen flex flex-col bg-[#0A0A0A] text-white dsp-shell" data-testid="dsp-shell">
-      <TopBar tab={tab} setTab={setTab} onOpenPresets={() => setPresetsOpen(true)} onOpenPrint={() => setPrintOpen(true)} />
+      <TopBar tab={tab} setTab={setTab} onOpenPresets={() => setPresetsOpen(true)} onOpenPrint={() => setPrintOpen(true)} onOpenImport={() => setImportOpen(true)} />
       <ProactiveProfileHint />
       {readOnly && (
         <div
@@ -167,6 +169,7 @@ const DSPShell = () => {
       {eqOutId && <EqEditor outputId={eqOutId} onClose={() => setEqOutId(null)} />}
       {compOutId && <CompEditor outputId={compOutId} onClose={() => setCompOutId(null)} />}
       {presetsOpen && <PresetManager onClose={() => setPresetsOpen(false)} />}
+      {importOpen && <DspImportModal onClose={() => setImportOpen(false)} />}
       {printOpen && (
         <div className="print-host">
           <ChannelMapPrint onClose={() => setPrintOpen(false)} />

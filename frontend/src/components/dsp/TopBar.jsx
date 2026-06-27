@@ -20,7 +20,7 @@ const Clock = () => {
   );
 };
 
-const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint }) => {
+const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint, onOpenImport }) => {
   const { state, setVersion, setMaster, setAllPinkNoise, clearAllSolo, setTalkback, readOnly, toggleReadOnly } = useDsp();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState(null);
@@ -300,6 +300,14 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint }) => {
             }}
           >
             {state.masterMute ? "MUTED" : "MUTE"}
+          </button>
+          <button
+            onClick={onOpenImport}
+            data-testid="open-import"
+            title="Import an AudioSystem DSP project file (channel names)"
+            className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border border-[#22D3EE] text-[#22D3EE] hover:bg-[#22D3EE] hover:text-black"
+          >
+            ⇩ Import
           </button>
           <button
             onClick={onOpenPresets}
