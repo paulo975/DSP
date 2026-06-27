@@ -26,6 +26,13 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Profile Auto-Detector)
+- ✅ **🔍 Detect** button on the Calibration Profile bar. Runs `detectProfile(state)` — a pure heuristic that scores all 4 profiles based on (a) number of routed outputs, (b) average / max delay in ms, (c) number of outputs with active crossover, (d) channel-name keyword hints (FOH/MON/SUB/TOP/PEW/BALCONY/etc.).
+- ✅ Result banner shows the recommended profile with **HIGH / MEDIUM / LOW** confidence pill, a one-line summary (`N active · avg delay X ms · M crossover(s)`), up to 4 bullet-point reasons, and inline **Use {profile}** + **Dismiss** CTAs. If the recommendation already matches the current selection, the Use button is swapped for an "Already Active" badge.
+- ✅ Picking the suggestion auto-clears the banner and persists the new active profile.
+- ✅ Edge case: empty routing returns a low-confidence Car Audio fallback with a clear message ("No outputs are routed yet — defaulting to Car Audio.").
+- ✅ Low-delay home-studio bonus is gated to `activeCount ≤ 4` to prevent misclassification of larger systems that simply haven't had time-alignment dialled in yet (fix verified iteration 20).
+
 ## What's Been Implemented (2026-02-13 — Calibration Profiles)
 - ✅ **Calibration Profiles** — 4 pre-tuned presets selectable from a bar in MetersView, each with scenario-appropriate `scope/levelDb/dwellMs/settleMs/matchMode/deadBandDb`:
   - ♪ **Live Band** (red) — touring PA, −12 dB / 1200 ms / ±1.5 dB tolerance
@@ -97,6 +104,8 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 16 (2026-02-13)**: 10/11 — One-Click Calibration pipeline (sweep → match → snapshot → CSV). 1 HIGH-priority safety bug found: read-only mode didn't halt the pipeline. Report: `/app/test_reports/iteration_16.json`.
 - **Iteration 17 (2026-02-13)**: 100% passed — Fix verified for the read-only safety bug (typed sentinel `{cancelled, count}` from `start()` + defense-in-depth orchestrator guard `!sweepRes || cancelled || count===0`). Report: `/app/test_reports/iteration_17.json`.
 - **Iteration 18 (2026-02-13)**: 100% passed — Calibration Profiles (4 presets, persistence via localStorage, seeds One-Click sliders, snapshot name embeds profile, Auto-Capture keeps defaults). Report: `/app/test_reports/iteration_18.json`.
+- **Iteration 19 (2026-02-13)**: 7/8 — Profile Auto-Detector implemented; 1 heuristic edge case (low-delay bonus at 8 routed outputs created a tie). Report: `/app/test_reports/iteration_19.json`.
+- **Iteration 20 (2026-02-13)**: 100% passed — 1-line fix verified: gated home-studio low-delay bonus by `activeCount ≤ 4`. All 4 detection scenarios (default HIGH, 8-route MEDIUM, empty LOW, smoke) pass. Report: `/app/test_reports/iteration_20.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
