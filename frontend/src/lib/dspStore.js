@@ -47,6 +47,10 @@ const loadFromStorage = () => {
     // loadable.
     parsed.scenes = Array.isArray(parsed.scenes) ? parsed.scenes : [];
     parsed.lastRecalledSceneId = parsed.lastRecalledSceneId ?? null;
+    // Talkback is a transient push-to-talk flag — never persist its "held"
+    // state across reloads, otherwise a tab closed while TALK was pressed
+    // would boot with the program silently dimmed.
+    parsed.talkback = false;
     return parsed;
   } catch (err) {
     console.warn("[dspStore] Failed to load state from localStorage:", err);

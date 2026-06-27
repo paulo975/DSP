@@ -26,6 +26,13 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Refined Layout: Waves eMotion LV1 inspired)
+- ✅ **Scribble strip color tags** — per-channel category (None/Mic/Vox/Drum/Bass/Gtr/Key/FX/Aux, 9 colours) settable from the Selected Channel hero panel via a swatch palette. Painted as a thin coloured band above ChannelStrip / InputStrip when category ≠ "none". Defined in `/app/frontend/src/lib/channelCategories.js`.
+- ✅ **CLR SOLO** button in TopBar (yellow) — wipes the solo flag on every input + output in one click. New reducer case `clearAllSolo` + read-only-guarded API method.
+- ✅ **🎤 TALK** push-to-talk button (red) — dims master while pointer is held (`pointerdown`/`up`/`leave`). Audio engine `applyMaster()` now accepts a `talkback` flag that overrides master gain to 0; the DspProvider effect feeds `state.talkback`. Talkback flag is **always reset to false on hydrate** so an aborted tab doesn't boot silent.
+- ✅ **Wall clock** display (green, HH:MM:SS, updates every second) in the TopBar — useful for live-show timing.
+- ✅ Backwards-compatible migration: older saves without `category` field automatically get `category: "none"` on every channel during hydration.
+
 ## What's Been Implemented (2026-02-13 — Hotkeys 1-8 for Scene Recall)
 - ✅ Window keydown listener (digits **1**–**8**) recalls the corresponding scene slot. Empty slots are skipped, modifier combos (Ctrl/Meta/Alt) are ignored, and the listener bails out when focus is on an `<input>` / `<textarea>` / `<select>` / `contentEditable` element so typing never hijacks recall.
 - ✅ Hotkey badge in the top-right of every slot (`scene-hotkey-1`..`scene-hotkey-8`) for discoverability — uses the slot accent colour and dims to grey on empty slots.
@@ -129,6 +136,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 22 (2026-02-13)**: Scene Memory 10/11. One real bug: read-only recall blocked by inert wrapper. Report: `/app/test_reports/iteration_22.json`.
 - **Iteration 23 (2026-02-13)**: 100% (10/10) — Fix verified: removed inert wrapper around SceneBar, ID collision-proofed. All scene flows (capture, recall, LIVE indicator, rename, overwrite, delete, persistence, read-only guards) pass. Report: `/app/test_reports/iteration_23.json`.
 - **Iteration 24 (2026-02-13)**: 100% (9/9 + regression) — Hotkeys 1-8 for scene recall. Verified: hotkey badges, modifier/typing/popout suppression, flash visual, footer hint. Report: `/app/test_reports/iteration_24.json`.
+- **Iteration 25 (2026-02-13)**: 100% — Waves eMotion LV1 layout refinements (scribble strip categories, CLR SOLO, TALK push-to-talk, wall clock). Migration verified for older saves. Reviewer hardening applied: talkback never persists across reload. Report: `/app/test_reports/iteration_25.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
