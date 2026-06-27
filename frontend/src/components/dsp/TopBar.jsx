@@ -8,6 +8,7 @@ import {
   loadSourceTemplate,
   clearSourceTemplate,
 } from "@/lib/dspBinaryExporter";
+import { buildShareUrl } from "@/lib/dspShareLink";
 
 const Clock = () => {
   const [time, setTime] = React.useState(new Date());
@@ -72,6 +73,50 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint, onOpenImport }) => {
     setTemplate(null);
     setExportMsg({ kind: "ok", text: "Template cleared." });
     setTimeout(() => setExportMsg(null), 2500);
+  };
+
+  // Build & copy a shareable URL containing the full state as base64.
+  // Falls back to legacy execCommand if the Clipboard API is unavailable.
+  const handleShare = async () => {
+    try {
+      const url = buildShareUrl(state);
+      let copied = false;
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(url);
+          copied = true;
+        } catch {
+          copied = false;
+        }
+      }
+      if (!copied) {
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        copied = document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      const kb = Math.round(url.length / 1024 * 10) / 10;
+      setExportMsg({
+        kind: copied ? "ok" : "error",
+        text: copied
+          ? `Share link copied (${kb} KB). Anyone with the URL gets the full state.`
+          : `Could not copy automatically — link is in the URL bar (${kb} KB).`,
+      });
+      // Also push the URL into the address bar so it's visible/recoverable.
+      try {
+        window.history.replaceState({}, "", url);
+      } catch {
+        // history API unavailable in some embed contexts
+      }
+      setTimeout(() => setExportMsg(null), 4000);
+    } catch (e) {
+      setExportMsg({ kind: "error", text: `Share failed: ${e?.message || e}` });
+      setTimeout(() => setExportMsg(null), 4000);
+    }
   };
 
   // Derive pink noise master state from outputs:
@@ -379,6 +424,14 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint, onOpenImport }) => {
               ✕
             </button>
           )}
+          <button
+            onClick={handleShare}
+            data-testid="open-share"
+            title="Copy a shareable URL that encodes the current full setup (channels, EQ, delays, routing, scenes) — paste in any browser to load it"
+            className="text-[10px] font-mono uppercase tracking-[0.18em] px-3 py-1.5 border border-[#00FF41] text-[#00FF41] hover:bg-[#00FF41] hover:text-black"
+          >
+            🔗 Share
+          </button>
           <button
             onClick={onOpenPresets}
             data-testid="open-presets"

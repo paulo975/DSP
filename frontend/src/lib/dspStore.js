@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { buildInitialState, VERSIONS } from "./dspDefaults";
 import { audioEngine } from "./audioEngine";
+import { applyShareIfPresent } from "./dspShareLink";
 
 const STORAGE_KEY = "dsp_state_v1";
 const PRESETS_KEY = "dsp_presets_v1";
@@ -15,6 +16,15 @@ const SCENE_COLORS = ["#FF6B00", "#00B7FF", "#FFD60A", "#FF3B30", "#00FF41", "#F
 // overwrite localStorage. It only mirrors state from the main window via the
 // `storage` event + meter levels via BroadcastChannel (see audioEngine).
 const IS_POPOUT = typeof window !== "undefined" && window.location.hash === "#popout=meters";
+
+// If the page was opened with a ?share=<base64> payload, hydrate it into
+// localStorage NOW (before loadFromStorage runs in the provider). The
+// helper strips the query param after applying so subsequent reloads
+// behave normally. Skipped in popout mode — popouts always mirror the
+// main window's state via the storage event.
+if (typeof window !== "undefined" && !IS_POPOUT) {
+  applyShareIfPresent();
+}
 
 const DspContext = createContext(null);
 

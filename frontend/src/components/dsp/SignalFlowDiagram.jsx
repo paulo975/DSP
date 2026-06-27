@@ -20,14 +20,23 @@ const DSP_BOX_W = 140;
 const inputAccent = (k) => (k === "in_phy" ? "#00B7FF" : "#0066AA");
 const outputAccent = (k) => (k === "out_phy" ? "#FF6B00" : "#AA4500");
 
-const SignalFlowDiagram = ({ state }) => {
+const SignalFlowDiagram = ({ state, mode = "logical" }) => {
   const { activeInputs, activeOutputs, routes, height } = useMemo(() => {
-    // Active outputs = those with at least one route source
-    const activeOuts = state.outputs.filter((o) => (state.matrix[o.id] || []).length > 0);
-    // Active inputs = those that are referenced by at least one active output
-    const referencedInputIds = new Set();
-    activeOuts.forEach((o) => (state.matrix[o.id] || []).forEach((id) => referencedInputIds.add(id)));
-    const activeIns = state.inputs.filter((i) => referencedInputIds.has(i.id));
+    let activeOuts;
+    let activeIns;
+    if (mode === "physical") {
+      // Physical view: show every declared channel (16+16 or 8+8) regardless
+      // of whether it has any routes. Useful as a system documentation map.
+      activeOuts = state.outputs;
+      activeIns = state.inputs;
+    } else {
+      // Logical view (default): only show channels that participate in at
+      // least one active route — keeps the picture readable in big shows.
+      activeOuts = state.outputs.filter((o) => (state.matrix[o.id] || []).length > 0);
+      const referencedInputIds = new Set();
+      activeOuts.forEach((o) => (state.matrix[o.id] || []).forEach((id) => referencedInputIds.add(id)));
+      activeIns = state.inputs.filter((i) => referencedInputIds.has(i.id));
+    }
 
     // Layout: assign each active input/output a Y position
     const inputPos = {};
@@ -62,9 +71,9 @@ const SignalFlowDiagram = ({ state }) => {
       routes: routeList,
       height: h,
     };
-  }, [state]);
+  }, [state, mode]);
 
-  if (routes.length === 0) {
+  if (routes.length === 0 && mode === "logical") {
     return (
       <div className="border border-neutral-300 bg-neutral-50 p-4 mb-4 text-center text-xs text-neutral-500" data-testid="signal-flow-empty">
         Signal Flow Diagram — no active routing. Configure routes in the Matrix tab to populate this view.
@@ -190,7 +199,7 @@ const SignalFlowDiagram = ({ state }) => {
         </svg>
       </div>
       <div className="text-[9px] text-neutral-500 mt-1 italic">
-        Showing {activeInputs.length} active input{activeInputs.length === 1 ? "" : "s"} → {activeOutputs.length} active output{activeOutputs.length === 1 ? "" : "s"} via {routes.length} route{routes.length === 1 ? "" : "s"}. Unrouted channels are omitted for clarity.
+        Showing {activeInputs.length} {mode === "physical" ? "" : "active "}input{activeInputs.length === 1 ? "" : "s"} → {activeOutputs.length} {mode === "physical" ? "" : "active "}output{activeOutputs.length === 1 ? "" : "s"} via {routes.length} route{routes.length === 1 ? "" : "s"}. {mode === "physical" ? "All declared channels shown (physical view)." : "Unrouted channels are omitted (logical view)."}
       </div>
     </div>
   );

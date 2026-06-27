@@ -11,6 +11,10 @@ const ChannelMapPrint = ({ onClose }) => {
   const { state } = useDsp();
   const v = VERSIONS[state.version];
   const printedAt = new Date().toLocaleString();
+  // Diagram view mode — defaults to "logical" (only routed channels) so
+  // the print fits on one page in most setups. "Physical" exposes every
+  // declared channel for full-system documentation.
+  const [flowMode, setFlowMode] = React.useState("logical");
 
   // Build routing summary: outputId -> list of input names
   const routingByOut = {};
@@ -35,6 +39,27 @@ const ChannelMapPrint = ({ onClose }) => {
             <div className="text-lg font-bold">Channel Map</div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Logical / Physical diagram toggle — screen only, hidden in print */}
+            <div className="flex border border-neutral-400 print:hidden" data-testid="flow-mode-group">
+              {[
+                { id: "logical", label: "Logical", tip: "Only show channels with at least one active route (clean view for live shows)" },
+                { id: "physical", label: "Physical", tip: "Show every declared channel (full system documentation)" },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setFlowMode(m.id)}
+                  data-testid={`flow-mode-${m.id}`}
+                  title={m.tip}
+                  className="text-[10px] font-mono uppercase tracking-[0.15em] px-3 py-2 font-bold border-r last:border-r-0 border-neutral-400"
+                  style={{
+                    background: flowMode === m.id ? "#000" : "transparent",
+                    color: flowMode === m.id ? "#fff" : "#333",
+                  }}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
             <button
               onClick={triggerPrint}
               data-testid="print-trigger"
@@ -68,8 +93,9 @@ const ChannelMapPrint = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Signal Flow Diagram — visual representation of active routing */}
-          <SignalFlowDiagram state={state} />
+          {/* Signal Flow Diagram — visual representation of routing.
+              "logical" mode hides unrouted channels; "physical" shows them all. */}
+          <SignalFlowDiagram state={state} mode={flowMode} />
 
           {/* Outputs table */}
           <h2 className="text-base font-bold mt-2 mb-2 uppercase tracking-wide">Output Channels</h2>
