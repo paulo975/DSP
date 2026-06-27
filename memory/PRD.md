@@ -26,6 +26,14 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — AudioSystem DSP File Importer)
+- ✅ **⇩ Import** button in TopBar opens a modal that accepts an AudioSystem DSP binary project file (.dsp) via drag-and-drop or file browser.
+- ✅ **Binary parser** (`/app/frontend/src/lib/dspBinaryImporter.js`) scans for the magic byte sequence `0xB0 0xE0 0xE3` and terminator `0xE8 0x40 0xED` to extract ASCII channel names. Real 64-record exports split exactly 32 inputs / 32 outputs; smaller test files use a half-split heuristic (`Math.ceil(N/2)`).
+- ✅ **Auto-Categorisation** (toggleable in the modal) — heuristic `guessCategory(name)` maps common names to scribble strip categories: KICK/SNARE/TOM → drum, BASS DI → bass, GTR → gtr, VOX LD → vox, SUB → bass, FRONT/CENTER/SURR → mic, etc.
+- ✅ Two-column preview shows the parsed split + category badges before commit. Apply patches `name` + optional `category` via `updateInput`/`updateOutput` on every channel.
+- ✅ Error states: tiny/non-DSP files report "Only N channel name(s) recognised" and disable Apply.
+- ✅ **Out of scope (deliberate)** — EQ / delay / routing / dynamics / matrix import. The Dante DSP datasheet PDF supplied confirms the binary format is proprietary; reverse-engineering byte layouts safely requires multiple known samples or the manufacturer's Communication Protocol Document. Channel name import alone delivers ~80% of practical value for an installer.
+
 ## What's Been Implemented (2026-02-13 — Refined Layout: Waves eMotion LV1 inspired)
 - ✅ **Scribble strip color tags** — per-channel category (None/Mic/Vox/Drum/Bass/Gtr/Key/FX/Aux, 9 colours) settable from the Selected Channel hero panel via a swatch palette. Painted as a thin coloured band above ChannelStrip / InputStrip when category ≠ "none". Defined in `/app/frontend/src/lib/channelCategories.js`.
 - ✅ **CLR SOLO** button in TopBar (yellow) — wipes the solo flag on every input + output in one click. New reducer case `clearAllSolo` + read-only-guarded API method.
@@ -137,6 +145,8 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 23 (2026-02-13)**: 100% (10/10) — Fix verified: removed inert wrapper around SceneBar, ID collision-proofed. All scene flows (capture, recall, LIVE indicator, rename, overwrite, delete, persistence, read-only guards) pass. Report: `/app/test_reports/iteration_23.json`.
 - **Iteration 24 (2026-02-13)**: 100% (9/9 + regression) — Hotkeys 1-8 for scene recall. Verified: hotkey badges, modifier/typing/popout suppression, flash visual, footer hint. Report: `/app/test_reports/iteration_24.json`.
 - **Iteration 25 (2026-02-13)**: 100% — Waves eMotion LV1 layout refinements (scribble strip categories, CLR SOLO, TALK push-to-talk, wall clock). Migration verified for older saves. Reviewer hardening applied: talkback never persists across reload. Report: `/app/test_reports/iteration_25.json`.
+- **Iteration 26 (2026-02-13)**: 8/10 — AudioSystem DSP File Importer (channel names + auto-categorise). 1 HIGH-priority parser bug: hard-coded 32/32 split missed outputs for <64-record files. Report: `/app/test_reports/iteration_26.json`.
+- **Iteration 27 (2026-02-13)**: 100% (3/3) — Fix verified: data-driven half-split when `all.length < 64`, exact 32/32 boundary preserved for real exports. Stale preview reset on new file. Report: `/app/test_reports/iteration_27.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
