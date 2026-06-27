@@ -108,11 +108,29 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
 
   // Visible frequency window (log-scaled X axis). User pans/zooms inside it.
   const [zoom, setZoom] = React.useState({ fLo: F_MIN, fHi: F_MAX });
+  // Live cursor position on the plot — drives the hover tooltip. `null`
+  // when the pointer leaves the chart or the user is mid-drag (the tooltip
+  // would just chase the band handle and obscure it).
+  const [hover, setHover] = React.useState(null);
   const { freqToX, xToFreq } = React.useMemo(
     () => makeMappers(zoom.fLo, zoom.fHi),
     [zoom.fLo, zoom.fHi],
   );
   const isZoomed = !(zoom.fLo <= F_MIN + 0.01 && zoom.fHi >= F_MAX - 0.01);
+
+  // Total chain response at any frequency — sum every band + the crossover
+  // roll-offs. Mirrors `computeCurvePoints` so the tooltip reads the same
+  // gain the drawn line shows.
+  const totalGainAt = React.useCallback(
+    (f) => {
+      let g = 0;
+      bands.forEach((b) => (g += bandGainAt(b, f)));
+      if (hpf.enabled && f < hpf.freq) g -= 12 * Math.log2(hpf.freq / f);
+      if (lpf.enabled && f > lpf.freq) g -= 12 * Math.log2(f / lpf.freq);
+      return g;
+    },
+    [bands, hpf, lpf],
+  );
 
   const curve = React.useMemo(
     () => computeCurvePoints(bands, hpf, lpf, freqToX),
@@ -264,9 +282,17 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
         fill="#000"
         stroke="#1f1f1f"
         onPointerDown={onBackgroundPointerDown}
-        onPointerMove={onBackgroundPointerMove}
+        onPointerMove={(e) => {
+          onBackgroundPointerMove(e);
+          // Track cursor for hover tooltip (only when not panning/dragging
+          // a band handle — those interactions own the cursor focus).
+          if (panRef.current || dragRef.current) return setHover(null);
+          const { x, y } = svgPointFromEvent(e);
+          setHover({ x, y });
+        }}
         onPointerUp={onBackgroundPointerUp}
         onPointerCancel={onBackgroundPointerUp}
+        onPointerLeave={() => setHover(null)}
         onDoubleClick={resetZoom}
         style={{ cursor: panRef.current ? "grabbing" : isZoomed ? "grab" : "default" }}
         data-testid="eq-bg"
@@ -374,6 +400,58 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
           </text>
         </g>
       )}
+
+      {/* Hover tooltip — live freq + total chain gain under the cursor.
+          Positioned near the pointer with a small offset so it doesn't sit
+          directly under the user's finger/cursor. Flips to the left edge of
+          the cursor when too close to the right margin to avoid clipping. */}
+      {hover && (() => {
+        const f = clamp(xToFreq(hover.x), zoom.fLo, zoom.fHi);
+        const g = totalGainAt(f);
+        const labelW = 96;
+        const labelH = 26;
+        const flipLeft = hover.x + labelW + 18 > W - PAD_R;
+        const lx = flipLeft ? hover.x - labelW - 12 : hover.x + 12;
+        const ly = clamp(hover.y - labelH - 6, PAD_T + 2, PAD_T + PLOT_H - labelH - 2);
+        return (
+          <g data-testid="eq-hover-tip" pointerEvents="none">
+            {/* Vertical guide line at cursor */}
+            <line
+              x1={hover.x}
+              y1={PAD_T}
+              x2={hover.x}
+              y2={PAD_T + PLOT_H}
+              stroke="#FF6B00"
+              strokeWidth={0.75}
+              strokeDasharray="3 3"
+              opacity={0.55}
+            />
+            {/* Tooltip body */}
+            <rect x={lx} y={ly} width={labelW} height={labelH} fill="#0a0a0a" stroke="#FF6B00" />
+            <text
+              x={lx + labelW / 2}
+              y={ly + 11}
+              fontSize={10}
+              textAnchor="middle"
+              fill="#FF6B00"
+              fontFamily="JetBrains Mono, monospace"
+              fontWeight={700}
+            >
+              {f >= 1000 ? `${(f / 1000).toFixed(2)} kHz` : `${Math.round(f)} Hz`}
+            </text>
+            <text
+              x={lx + labelW / 2}
+              y={ly + 22}
+              fontSize={10}
+              textAnchor="middle"
+              fill="#fff"
+              fontFamily="JetBrains Mono, monospace"
+            >
+              {`${g >= 0 ? "+" : ""}${g.toFixed(1)} dB`}
+            </text>
+          </g>
+        );
+      })()}
     </svg>
   );
 };

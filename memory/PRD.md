@@ -26,6 +26,13 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — EQ Hover Tooltip · live freq+gain readout)
+- ✅ **Floating hover tooltip** on `EqDragChart` — orange badge follows the cursor showing `<freq> Hz/kHz` + `<total chain gain> dB` at the exact frequency under the pointer. Pairs perfectly with the focal zoom for surgical EQ work ("am I really centred on 750 Hz?").
+- ✅ **Vertical guide line** (dashed orange) drops from top to bottom at the cursor X position — instant visual confirmation of where you're aiming on the curve.
+- ✅ **Smart positioning** — badge sits to the upper-right of the cursor by default; flips to the left when too close to the right margin so it never clips off the chart. Y position is clamped to keep it inside the plot area.
+- ✅ **Non-conflicting** — the tooltip suppresses itself during band drag and during shift+drag pan (those interactions own focus and the badge would just chase the handle or pan target). Hovering directly over a band handle also suppresses it because the handle's colour/label already provide the same info.
+- ✅ **E2E browser tested** — readouts verified at multiple positions across the full range and inside an active zoom: 112 Hz / 2.52 kHz / 4.39 kHz / 541 Hz (zoomed) all reported with the correct `±0.0 dB` baseline.
+
 ## What's Been Implemented (2026-02-13 — EQ Drag Chart · Scroll-Zoom + Pan)
 - ✅ **Focal scroll-zoom** on `EqDragChart` — mouse wheel over the chart background zooms in/out centered on the cursor (FabFilter Pro-Q style). The frequency under the pointer stays fixed while the surrounding range expands/contracts. Min span clamped to ~1/3 octave so users can't over-zoom.
 - ✅ **Shift+drag pan** — when zoomed, hold Shift and drag horizontally to slide the visible window without changing zoom level. Clamped to the absolute 20 Hz–20 kHz audible band.
