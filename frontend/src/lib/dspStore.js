@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useMemo, useReducer, useRe
 import { buildInitialState, VERSIONS } from "./dspDefaults";
 import { audioEngine } from "./audioEngine";
 import { applyShareIfPresent } from "./dspShareLink";
+import { hwBridge } from "./dspHardwareBridge";
 
 const STORAGE_KEY = "dsp_state_v1";
 const PRESETS_KEY = "dsp_presets_v1";
@@ -317,6 +318,23 @@ export const DspProvider = ({ children }) => {
     const findInput = (id) => state.inputs.find((c) => c.id === id);
     const findOutput = (id) => state.outputs.find((c) => c.id === id);
 
+    // Channel id → numeric index for the hardware bridge. Hardware channels
+    // are 0-based and indexed by their position in the inputs/outputs arrays.
+    const idxOfOutput = (id) => state.outputs.findIndex((c) => c.id === id);
+    const idxOfInput = (id) => state.inputs.findIndex((c) => c.id === id);
+
+    // Forward applicable per-output mutations to the physical DSP via the
+    // local bridge. Silent no-op when the bridge is offline — the web app
+    // stays fully functional as a standalone editor in that case.
+    const forwardOutputToHardware = (id, patch) => {
+      const ch = idxOfOutput(id);
+      if (ch < 0) return;
+      if ("gain" in patch) hwBridge.sendFader(ch, patch.gain);
+      if ("mute" in patch) hwBridge.sendMute(ch, !!patch.mute);
+      if ("phase" in patch) hwBridge.sendPhase(ch, !!patch.phase);
+      if ("delay" in patch) hwBridge.sendDelay(ch, Math.max(0, Math.round(patch.delay)));
+    };
+
     return {
       state,
       dispatch,
@@ -326,22 +344,38 @@ export const DspProvider = ({ children }) => {
       // helpers — all wrapped by the read-only guard
       updateOutput: guard((id, patch) => {
         dispatch({ type: "updateOutput", id, patch });
+        forwardOutputToHardware(id, patch);
         const me = findOutput(id);
         if (me?.linkedTo) {
           const shared = linkedPatch(patch);
-          if (Object.keys(shared).length) dispatch({ type: "updateOutput", id: me.linkedTo, patch: shared });
+          if (Object.keys(shared).length) {
+            dispatch({ type: "updateOutput", id: me.linkedTo, patch: shared });
+            forwardOutputToHardware(me.linkedTo, shared);
+          }
         }
       }),
       updateOutputDeep: guard((id, fn) => dispatch({ type: "updateOutputDeep", id, fn })),
       updateInput: guard((id, patch) => {
         dispatch({ type: "updateInput", id, patch });
         const me = findInput(id);
+        // Inputs only forward mute (hardware doesn't expose much else for inputs yet).
+        const inIdx = idxOfInput(id);
+        if (inIdx >= 0 && "mute" in patch) hwBridge.sendMute(inIdx, !!patch.mute);
         if (me?.linkedTo) {
           const shared = linkedPatch(patch);
           if (Object.keys(shared).length) dispatch({ type: "updateInput", id: me.linkedTo, patch: shared });
         }
       }),
-      toggleRoute: guard((outId, inId) => dispatch({ type: "toggleRoute", outId, inId })),
+      toggleRoute: guard((outId, inId) => {
+        dispatch({ type: "toggleRoute", outId, inId });
+        // Forward the new state of this crosspoint to the DSP matrix.
+        const row = idxOfInput(inId);
+        const col = idxOfOutput(outId);
+        if (row >= 0 && col >= 0) {
+          const before = (state.matrix?.[outId] || []).includes(inId);
+          hwBridge.sendMatrix(row, col, !before);
+        }
+      }),
       clearRoutes: guard(() => dispatch({ type: "clearRoutes" })),
       setVersion: guard((version) => dispatch({ type: "setVersion", version })),
       setMaster: guard((patch) => dispatch({ type: "setMaster", patch })),

@@ -26,6 +26,15 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — ASDP Bridge · web app ↔ physical DSP)
+- ✅ **Reverse-engineered the full AudioSystem DSP UDP protocol** from 5 Wireshark captures + targeted isolated tests. Documented in `/app/memory/ASDP_PROTOCOL.md`. Fader (cmd `0x002D`), Mute (`0x012B/0x0005`), Matrix (`0x00A6` row/col/state), EQ band freq/gain/Q (`0x0061` family), Delay in ms (`0x00F4/0x0002`), Phase (`0x0127`), Save (`0x0015`), real-time meters (peak `A5 5A F0 03` 1024B, RMS `A5 5A D0 02` 736B).
+- ✅ **Python bridge daemon** (`/app/asdp_bridge/asdp_bridge.py`, ~330 lines) — single-file, only depends on `websockets`. UDP socket to `169.254.10.227:6001` + heartbeat thread + meter receiver thread + WebSocket server on `ws://localhost:8765`. All packet builders are **bit-perfect** matches of captured traffic (validated with assertions).
+- ✅ **Web app hardware client** (`/app/frontend/src/lib/dspHardwareBridge.js`) — auto-connects to `ws://localhost:8765` on app load (browsers allow ws:// to localhost from https:// pages per W3C Secure Contexts spec, no TLS needed). Auto-reconnect every 2.5s if bridge is down. Exposes `hwBridge.onStatus()` / `hwBridge.onMeters()` for UI subscribers.
+- ✅ **TopBar status indicator** (`HardwareBridgeIndicator.jsx`) — three states: ⚫ Bridge OFFLINE / 🟡 Bridge ON · DSP ? / 🟢 Bridge ↔ DSP. Click opens a help modal with copy-paste install/run commands and a Retry button.
+- ✅ **Store forwarding** — `updateOutput`, `updateInput`, `toggleRoute` now auto-forward applicable changes (gain → fader, mute, phase, delay, matrix crosspoint) to `hwBridge`. Silent no-op when bridge is offline → app stays fully functional as a standalone editor.
+- ✅ **macOS .app build instructions** in `/app/asdp_bridge/README.md` — single PyInstaller command produces a clickable `ASDP-Bridge.app` the user can move to `/Applications`.
+- ✅ **Smoke tested**: indicator renders "Bridge OFFLINE" (preview env without daemon), help modal opens correctly, all other web app features untouched. Python module imports cleanly, all packet builders validated against capture bytes.
+
 ## What's Been Implemented (2026-02-13 — EQ Spectrum Analyzer · live FFT behind the curve)
 - ✅ **Per-output FFT analyser** attached on demand when EQ editor opens, detached on close. `fftSize=2048` (1024 bins, ~23 Hz/bin at 48 kHz) tapped at the chain *input* (pre-DSP) so the spectrum shows the source signal — FabFilter Pro-Q convention.
 - ✅ **Cyan semi-transparent spectrum** drawn behind the orange EQ curve in `EqDragChart`. 128 log-spaced sample points polyline + filled area to baseline. rAF loop at 30 FPS keeps the spectrum lively without burning CPU. Path is empty (renders nothing) when no audio is flowing — clean look at rest.

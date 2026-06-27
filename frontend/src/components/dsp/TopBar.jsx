@@ -9,6 +9,7 @@ import {
   clearSourceTemplate,
 } from "@/lib/dspBinaryExporter";
 import { buildShareUrl } from "@/lib/dspShareLink";
+import HardwareBridgeIndicator from "./HardwareBridgeIndicator";
 
 const Clock = () => {
   const [time, setTime] = React.useState(new Date());
@@ -432,6 +433,7 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint, onOpenImport }) => {
           >
             🔗 Share
           </button>
+          <HardwareBridgeIndicator />
           <button
             onClick={onOpenPresets}
             data-testid="open-presets"
