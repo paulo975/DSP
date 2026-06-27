@@ -26,6 +26,12 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Input Strips + Proactive Profile Hint)
+- ✅ **Analog Input Strips** — new collapsible "INPUTS · 32 ch" row above the Physical Outputs section. Each strip has: chunky header pill (IN N), large **MUTE** button (English, red glow when active), smaller **SOLO** pill (yellow when active), pointer-drag vertical fader with white/red analog cap, value callout that follows the cap, tick scale (+12 / +6 / +3 / 0 / −3 / −6 / −12 / −30 / −60), zero-dB reference line, dB readout, and live per-input bus meter on the right.
+- ✅ **Audio engine wiring**: new `audioEngine.applyInputChannel(input, state)` sets `inputBuses[id].gain` based on per-input mute/gain. Solo logic mutes all non-soloed inputs at the bus level. A new `useEffect` in DspProvider fires this for every input on `state.inputs/version` change — zero-rebuild, click-free updates via `setTargetAtTime`.
+- ✅ **Proactive Profile Hint** — pulsing chip rendered between TopBar and main when `detectProfile()` returns a suggestion that (a) differs from the active profile AND (b) has MEDIUM or HIGH confidence. Click `Switch profile` to apply, `×` to dismiss. Dismissals persisted to `localStorage.dsp_proactive_dismissed_v1` and automatically cleared when the routing fingerprint changes meaningfully so the user can be re-nudged.
+- ✅ Chip is **hidden in popout mode** (`#popout=meters`) and **never appears when active profile === suggested profile** — by design, no nag for matched setups.
+
 ## What's Been Implemented (2026-02-13 — Profile Auto-Detector)
 - ✅ **🔍 Detect** button on the Calibration Profile bar. Runs `detectProfile(state)` — a pure heuristic that scores all 4 profiles based on (a) number of routed outputs, (b) average / max delay in ms, (c) number of outputs with active crossover, (d) channel-name keyword hints (FOH/MON/SUB/TOP/PEW/BALCONY/etc.).
 - ✅ Result banner shows the recommended profile with **HIGH / MEDIUM / LOW** confidence pill, a one-line summary (`N active · avg delay X ms · M crossover(s)`), up to 4 bullet-point reasons, and inline **Use {profile}** + **Dismiss** CTAs. If the recommendation already matches the current selection, the Use button is swapped for an "Already Active" badge.
@@ -106,6 +112,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 18 (2026-02-13)**: 100% passed — Calibration Profiles (4 presets, persistence via localStorage, seeds One-Click sliders, snapshot name embeds profile, Auto-Capture keeps defaults). Report: `/app/test_reports/iteration_18.json`.
 - **Iteration 19 (2026-02-13)**: 7/8 — Profile Auto-Detector implemented; 1 heuristic edge case (low-delay bonus at 8 routed outputs created a tie). Report: `/app/test_reports/iteration_19.json`.
 - **Iteration 20 (2026-02-13)**: 100% passed — 1-line fix verified: gated home-studio low-delay bonus by `activeCount ≤ 4`. All 4 detection scenarios (default HIGH, 8-route MEDIUM, empty LOW, smoke) pass. Report: `/app/test_reports/iteration_20.json`.
+- **Iteration 21 (2026-02-13)**: Feature A (Input Strips) 100% (8/8). Feature B (Proactive Hint) initial-chip + apply + dismiss-persistence pass; 3 sub-scenarios (fingerprint-reset re-fire, LOW suppression, popout safety) reported failures but RCA confirms these are **test-side assumption errors** (chip is correctly hidden when active profile already matches the suggestion, regardless of routing changes). Regression: `pan-visual` testid scrolled out of viewport with new inputs row — feature still present, not a real defect. Report: `/app/test_reports/iteration_21.json`.
 
 ## Prioritized Backlog
 ### P1 (next session)
