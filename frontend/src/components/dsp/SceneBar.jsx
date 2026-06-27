@@ -30,8 +30,6 @@ const SceneBar = () => {
 
   const handleCapture = (slotIdx) => {
     if (readOnly) return;
-    // If slot is empty, create a new scene. If filled, overwrite that scene
-    // (this branch is used by the explicit "Save" menu item — see below).
     createScene(`Scene ${slotIdx + 1}`);
   };
 

@@ -1,0 +1,23 @@
+{
+  "summary": "RE-TEST iteration 23: verified the inert-wrapper fix for read-only Scene RECALL and the collision-proof scene IDs. End-to-end Playwright run executed every step of the brief (capture, mute, recall in read-only, mutation guards, capture guard, rapid-capture uniqueness, full regression incl. reload persistence). All 10 steps PASSED.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SceneBar.jsx still has no outside-click dismissal for the right-click menu (relies on onMouseLeave only). Cosmetic, not blocking — flagged in prior iterations.",
+    "DSPApp.jsx wraps SelectedChannelPanel/InputsRow/ChannelStrips with `inert` but SceneBar is intentionally outside that wrapper — this matches the fix intent; consider adding an inline code comment in DSPApp.jsx noting the deliberate placement to prevent future regressions.",
+    "dspStore.js createScene uses Date.now()+random(1e6) which is robust for UI burst clicks; still strictly possible (≈1/1M) to collide if two captures land in the same ms. Consider crypto.randomUUID() for absolute uniqueness. Not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a", "frontend": "100%" },
+  "seed_data_creation": "Test created 6 scenes in localStorage (TEST_Renamed among them); ephemeral — gone on next clear.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 23 fully validates iteration 22's outstanding bug (read-only recall) and the random-suffix scene IDs. Verified flows: (a) lastRecalledSceneId persisted to localStorage matches scene id, (b) scene-live-{id} indicator becomes visible on recalled slot, (c) inputs[0].mute correctly flips to false then true when recalling Scene 1 then Scene 2, (d) mutating menu buttons carry disabled attribute and store guard rejects clicks (scenes JSON unchanged), (e) empty-slot capture button disabled in readonly (scene count stays at 2), (f) rapid 4-click capture produces 6 unique scene ids, (g) rename / overwrite / delete all work after unlock; updatedAt added on overwrite; persistence verified after page reload.",
+  "rca of the issue": "Iteration 22 issue was caused by <div inert={readOnly||undefined}> wrapping SceneBar in DSPApp.jsx — `inert` blocks ALL pointer events on descendants including the recall button. Fix: moved SceneBar outside the inert wrapper; mutating buttons retain individual `disabled={readOnly}` guards plus reducer-level guard via `guard()` in dspStore.js. Verified the recall button is now clickable and reducer recallScene path is unguarded by design (analogous to loadPresetState). Scene ID collision was avoided by appending Math.floor(Math.random()*1e6) to Date.now()."
+}

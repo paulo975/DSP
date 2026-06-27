@@ -43,10 +43,12 @@ const ChannelsView = ({ onOpenEq, onOpenComp, selectedId, onSelect, bank, setBan
         setBank={setBank}
       />
 
-      {/* Scene Memory bar — 8 slots, live recall, right-click for menu */}
-      <div inert={readOnly || undefined}>
-        <SceneBar />
-      </div>
+      {/* Scene Memory bar — 8 slots, live recall, right-click for menu.
+          NOT wrapped in inert: recall must remain clickable in read-only
+          (analogous to loadPresetState — a viewing action). The individual
+          mutating menu items (Overwrite / Rename / Delete) handle their own
+          read-only guards. */}
+      <SceneBar />
 
       {/* Inputs section — collapsible analog-style input strips */}
       <div inert={readOnly || undefined} className="border-b border-neutral-900">
