@@ -187,7 +187,7 @@ const EqEditor = ({ outputId, onClose }) => {
           </div>
           {chartMode === "drag" && (
             <div className="mt-1 text-[9px] font-mono uppercase tracking-[0.18em] text-neutral-500" data-testid="eq-drag-hint">
-              Drag handle = freq + gain · Mouse wheel = Q (Shift = ×5) · Double-click = reset band
+              Drag handle = freq+gain · Wheel on handle = Q · Wheel on bg = zoom · Shift+drag = pan · Double-click bg = reset zoom · Double-click handle = reset band
             </div>
           )}
 

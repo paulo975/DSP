@@ -31,6 +31,9 @@ const G_BAND_MIN = -18;
 const G_BAND_MAX = 18;
 const Q_MIN = 0.1;
 const Q_MAX = 10;
+// Smallest zoom window we allow on the X axis — about 1/3 octave. Anything
+// tighter is more confusing than helpful for surgical tweaks.
+const MIN_ZOOM_SPAN_LOG = 0.10; // log10(Fmax/Fmin) at full zoom-in
 
 // Per-band default Q used by the "double-click to reset" action. Mirrors
 // dspDefaults.js: lowshelf/highshelf use Q=0.7, the three peaking bands
@@ -41,8 +44,16 @@ const DEFAULT_Q_FOR = (type) => (type === "peaking" ? 1.0 : 0.7);
 const BAND_COLORS = ["#22D3EE", "#A855F7", "#FF6B00", "#FFD60A", "#00FF41"];
 
 // ---- coordinate mappers ----
-const freqToX = (f) => PAD_L + (Math.log10(f / F_MIN) / Math.log10(F_MAX / F_MIN)) * PLOT_W;
-const xToFreq = (x) => F_MIN * Math.pow(F_MAX / F_MIN, (x - PAD_L) / PLOT_W);
+// The X axis is log-scaled between a *current* visible window
+// (`fLo`/`fHi`) so we can zoom & pan. The helpers below close over those
+// bounds to keep call sites tidy.
+const makeMappers = (fLo, fHi) => {
+  const logSpan = Math.log10(fHi / fLo);
+  return {
+    freqToX: (f) => PAD_L + (Math.log10(f / fLo) / logSpan) * PLOT_W,
+    xToFreq: (x) => fLo * Math.pow(fHi / fLo, (x - PAD_L) / PLOT_W),
+  };
+};
 const gainToY = (g) => PAD_T + ((G_MAX - g) / (G_MAX - G_MIN)) * PLOT_H;
 const yToGain = (y) => G_MAX - ((y - PAD_T) / PLOT_H) * (G_MAX - G_MIN);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -61,10 +72,12 @@ const bandGainAt = (band, f) => {
   return 0;
 };
 
-const computeCurvePoints = (bands, hpf, lpf) => {
+const computeCurvePoints = (bands, hpf, lpf, freqToX) => {
+  // Always sample across the *full* audible band so the curve stays valid
+  // when the user zooms in. The mapper clips off-screen points naturally.
   const pts = [];
-  for (let i = 0; i <= 160; i++) {
-    const f = F_MIN * Math.pow(F_MAX / F_MIN, i / 160);
+  for (let i = 0; i <= 240; i++) {
+    const f = F_MIN * Math.pow(F_MAX / F_MIN, i / 240);
     let g = 0;
     bands.forEach((b) => (g += bandGainAt(b, f)));
     if (hpf.enabled && f < hpf.freq) g -= 12 * Math.log2(hpf.freq / f);
@@ -75,16 +88,36 @@ const computeCurvePoints = (bands, hpf, lpf) => {
   return pts;
 };
 
-// Grid frequency lines drawn in the background — pro-audio convention.
-const GRID_FREQS = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
+// Background frequency-grid candidates. We render whichever ones fall
+// inside the current zoom window — keeps the labels readable at every
+// zoom level. (Pro-audio convention: octave + half-octave anchors.)
+const GRID_FREQS = [
+  20, 30, 50, 80, 100, 150, 200, 300, 500, 800, 1000, 1500,
+  2000, 3000, 5000, 7000, 10000, 15000, 20000,
+];
 const GRID_GAINS = [-18, -12, -6, 0, 6, 12, 18];
-const formatFreqLabel = (f) => (f >= 1000 ? `${f / 1000}k` : `${f}`);
+const formatFreqLabel = (f) => {
+  if (f >= 1000) return `${(f / 1000).toFixed(f % 1000 === 0 ? 0 : 1)}k`;
+  return `${Math.round(f)}`;
+};
 
 const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) => {
   const svgRef = React.useRef(null);
-  const dragRef = React.useRef(null); // { bandIndex, startX, startY }
+  const dragRef = React.useRef(null); // { bandIndex }
+  const panRef = React.useRef(null); // { startClientX, startLog }
 
-  const curve = React.useMemo(() => computeCurvePoints(bands, hpf, lpf), [bands, hpf, lpf]);
+  // Visible frequency window (log-scaled X axis). User pans/zooms inside it.
+  const [zoom, setZoom] = React.useState({ fLo: F_MIN, fHi: F_MAX });
+  const { freqToX, xToFreq } = React.useMemo(
+    () => makeMappers(zoom.fLo, zoom.fHi),
+    [zoom.fLo, zoom.fHi],
+  );
+  const isZoomed = !(zoom.fLo <= F_MIN + 0.01 && zoom.fHi >= F_MAX - 0.01);
+
+  const curve = React.useMemo(
+    () => computeCurvePoints(bands, hpf, lpf, freqToX),
+    [bands, hpf, lpf, freqToX],
+  );
   const curvePath = React.useMemo(() => {
     if (!curve.length) return "";
     return curve.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
@@ -100,12 +133,12 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
     return { x: clamp(x, PAD_L, W - PAD_R), y: clamp(y, PAD_T, H - PAD_B) };
   };
 
+  // ----- Band handle interaction -----
   const startDrag = (idx) => (e) => {
     if (disabled) return;
     e.preventDefault();
     e.stopPropagation();
     dragRef.current = { bandIndex: idx };
-    // Capture pointer so we keep events even if cursor leaves the SVG.
     e.currentTarget.setPointerCapture?.(e.pointerId);
     handleMove(e);
   };
@@ -123,9 +156,11 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
   };
 
   // Mouse wheel on a handle → adjust Q. Shift = bigger step.
-  const onWheel = (idx) => (e) => {
+  // Stops propagation so it doesn't double-fire the background zoom.
+  const onHandleWheel = (idx) => (e) => {
     if (disabled) return;
     e.preventDefault();
+    e.stopPropagation();
     const dir = e.deltaY > 0 ? -1 : 1; // wheel up = larger Q
     const step = (e.shiftKey ? 0.5 : 0.1) * dir;
     const cur = bands[idx]?.q ?? 1;
@@ -140,6 +175,76 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
     onBandReset(idx);
   };
 
+  // ----- Background zoom/pan interaction -----
+  // Wheel on empty plot area: zoom focal-point on cursor (log-space).
+  // Pro-Q-style — the frequency under the cursor stays put while the
+  // surrounding range expands/contracts.
+  const onBackgroundWheel = (e) => {
+    if (disabled) return;
+    e.preventDefault();
+    const { x } = svgPointFromEvent(e);
+    const focal = xToFreq(x); // freq the cursor is over right now
+    const factor = e.deltaY > 0 ? 1.25 : 1 / 1.25; // wheel up = zoom in
+    const curLog = Math.log10(zoom.fHi / zoom.fLo);
+    let newLog = curLog * factor;
+    // Clamp the visible span: never tighter than ~1/3 octave, never wider
+    // than the full audible band.
+    newLog = clamp(newLog, MIN_ZOOM_SPAN_LOG, Math.log10(F_MAX / F_MIN));
+    if (Math.abs(newLog - curLog) < 1e-4) return;
+    // Keep `focal` at the same fractional X position post-zoom.
+    const fracX = (x - PAD_L) / PLOT_W;
+    const logFocal = Math.log10(focal);
+    let newLo = Math.pow(10, logFocal - newLog * fracX);
+    let newHi = Math.pow(10, logFocal + newLog * (1 - fracX));
+    // Clamp to absolute bounds; if we'd run off either edge, slide instead.
+    if (newLo < F_MIN) {
+      newHi *= F_MIN / newLo;
+      newLo = F_MIN;
+    }
+    if (newHi > F_MAX) {
+      newLo *= F_MAX / newHi;
+      newHi = F_MAX;
+    }
+    setZoom({ fLo: clamp(newLo, F_MIN, F_MAX / 1.01), fHi: clamp(newHi, F_MIN * 1.01, F_MAX) });
+  };
+
+  // Shift+drag on the empty plot area → pan horizontally without changing zoom.
+  const onBackgroundPointerDown = (e) => {
+    if (disabled || !e.shiftKey) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    panRef.current = {
+      startClientX: e.clientX,
+      startFLo: zoom.fLo,
+      startFHi: zoom.fHi,
+      widthPx: e.currentTarget.getBoundingClientRect().width,
+    };
+  };
+  const onBackgroundPointerMove = (e) => {
+    if (!panRef.current) return;
+    const { startClientX, startFLo, startFHi, widthPx } = panRef.current;
+    const dxFrac = (e.clientX - startClientX) / widthPx; // 0..1 across the SVG width
+    const logShift = -dxFrac * Math.log10(startFHi / startFLo);
+    let newLo = Math.pow(10, Math.log10(startFLo) + logShift);
+    let newHi = Math.pow(10, Math.log10(startFHi) + logShift);
+    if (newLo < F_MIN) {
+      newHi *= F_MIN / newLo;
+      newLo = F_MIN;
+    }
+    if (newHi > F_MAX) {
+      newLo *= F_MAX / newHi;
+      newHi = F_MAX;
+    }
+    setZoom({ fLo: newLo, fHi: newHi });
+  };
+  const onBackgroundPointerUp = (e) => {
+    if (!panRef.current) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    panRef.current = null;
+  };
+
+  const resetZoom = () => setZoom({ fLo: F_MIN, fHi: F_MAX });
+
   return (
     <svg
       ref={svgRef}
@@ -148,12 +253,27 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
       className="w-full h-full select-none"
       style={{ touchAction: "none", cursor: disabled ? "not-allowed" : "default" }}
       data-testid="eq-drag-chart"
+      onWheel={onBackgroundWheel}
     >
-      {/* Plot background */}
-      <rect x={PAD_L} y={PAD_T} width={PLOT_W} height={PLOT_H} fill="#000" stroke="#1f1f1f" />
+      {/* Plot background — also the hit target for shift+drag panning */}
+      <rect
+        x={PAD_L}
+        y={PAD_T}
+        width={PLOT_W}
+        height={PLOT_H}
+        fill="#000"
+        stroke="#1f1f1f"
+        onPointerDown={onBackgroundPointerDown}
+        onPointerMove={onBackgroundPointerMove}
+        onPointerUp={onBackgroundPointerUp}
+        onPointerCancel={onBackgroundPointerUp}
+        onDoubleClick={resetZoom}
+        style={{ cursor: panRef.current ? "grabbing" : isZoomed ? "grab" : "default" }}
+        data-testid="eq-bg"
+      />
 
-      {/* Frequency grid + labels */}
-      {GRID_FREQS.map((f) => {
+      {/* Frequency grid + labels — only show entries that fit in the window */}
+      {GRID_FREQS.filter((f) => f >= zoom.fLo && f <= zoom.fHi).map((f) => {
         const x = freqToX(f);
         return (
           <g key={`fg-${f}`}>
@@ -190,6 +310,10 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
 
       {/* Draggable band handles */}
       {bands.map((b, i) => {
+        // Skip handles that fall outside the current zoom window — keeps
+        // them from rendering on top of the y-axis labels at high zoom.
+        const inView = b.freq >= zoom.fLo && b.freq <= zoom.fHi;
+        if (!inView) return null;
         const x = freqToX(b.freq);
         const y = gainToY(b.gain);
         const color = BAND_COLORS[i] || "#fff";
@@ -213,7 +337,7 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
               onPointerMove={handleMove}
               onPointerUp={endDrag}
               onPointerCancel={endDrag}
-              onWheel={onWheel(i)}
+              onWheel={onHandleWheel(i)}
               onDoubleClick={onDoubleClickHandle(i)}
             />
             <text
@@ -231,6 +355,25 @@ const EqDragChart = ({ bands, hpf, lpf, onBandChange, onBandReset, disabled }) =
           </g>
         );
       })}
+
+      {/* Zoom indicator (top-right corner) — current range + click-to-reset.
+          Only rendered when the user has zoomed away from the full audible band. */}
+      {isZoomed && (
+        <g data-testid="eq-zoom-indicator" onClick={resetZoom} style={{ cursor: "pointer" }}>
+          <rect x={W - PAD_R - 132} y={PAD_T + 4} width={130} height={18} fill="#0a0a0a" stroke="#A855F7" />
+          <text
+            x={W - PAD_R - 67}
+            y={PAD_T + 16}
+            fontSize={10}
+            textAnchor="middle"
+            fill="#A855F7"
+            fontFamily="JetBrains Mono, monospace"
+            fontWeight={700}
+          >
+            {formatFreqLabel(zoom.fLo)} – {formatFreqLabel(zoom.fHi)} · RESET
+          </text>
+        </g>
+      )}
     </svg>
   );
 };

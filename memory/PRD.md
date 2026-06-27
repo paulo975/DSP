@@ -26,6 +26,14 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — EQ Drag Chart · Scroll-Zoom + Pan)
+- ✅ **Focal scroll-zoom** on `EqDragChart` — mouse wheel over the chart background zooms in/out centered on the cursor (FabFilter Pro-Q style). The frequency under the pointer stays fixed while the surrounding range expands/contracts. Min span clamped to ~1/3 octave so users can't over-zoom.
+- ✅ **Shift+drag pan** — when zoomed, hold Shift and drag horizontally to slide the visible window without changing zoom level. Clamped to the absolute 20 Hz–20 kHz audible band.
+- ✅ **Reset gestures** — double-click on background OR click the purple "RESET" indicator (top-right of chart, only visible when zoomed) returns to full 20 Hz–20 kHz range.
+- ✅ **Adaptive frequency grid** — labels at 20/30/50/80/100/150/200/300/500/800/1k/1.5k/2k/3k/5k/7k/10k/15k/20k Hz, filtered to whatever falls inside the current zoom window. No more "1 label every 4 cm" wastage at high zoom.
+- ✅ **Off-screen handle culling** — band handles whose frequency falls outside the visible window are not rendered (avoids them stacking on top of the Y-axis labels). They reappear once the user pans/zooms back.
+- ✅ **E2E browser tested**: wheel zoom 4 ticks → range collapses 20 Hz–20 kHz to 153 Hz–2.6 kHz · drag of band 2 inside the zoomed view updates state to freq=292/gain=9 · Shift+drag pan shifts 108–3.7k to 234–8.0k · indicator click + double-click both reset zoom.
+
 ## What's Been Implemented (2026-02-13 — Triple P2: EQ Drag · Share URL · Logical/Physical)
 - ✅ **EQ Drag-to-edit** (`/app/frontend/src/components/dsp/EqDragChart.jsx`) — custom SVG chart with 5 coloured draggable handles (one per band). Drag = freq (log X) + gain (linear Y) · Mouse wheel = Q (Shift = ×5) · Double-click = reset that band. Mode toggle in EqEditor switches between **DRAG** (interactive) and **STATIC** (legacy Recharts) so users who prefer numeric sliders still get them. Chart math reuses the same `bandGainAt` peaking/shelving approximation as the engine for visual parity.
 - ✅ **Shareable URL** (`/app/frontend/src/lib/dspShareLink.js`) — **🔗 Share** button in TopBar copies a self-contained link to the clipboard. Encodes a *compact diff* (initial state vs current) so a typical mix lands at ~1-2 KB instead of ~65 KB raw JSON (which hit HTTP 414 at the ingress). On boot, `applyShareIfPresent` hydrates `localStorage` from the `?share=` param then strips it from the URL. Channels not in the payload restore to defaults; the recipient's previous local state is replaced.
