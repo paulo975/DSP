@@ -57,6 +57,9 @@ export const defaultChannel = (idx, kind) => ({
   },
   limiter: { enabled: false, ceiling: -0.3 },
   pinkNoise: { enabled: false, level: -20, type: "pink" }, // type: 'pink'|'white'|'sweep'
+  // Stereo-link partner: id of another same-kind channel paired with this one
+  // (gain/mute/solo are mirrored when set). null = unlinked.
+  linkedTo: null,
 });
 
 export const buildInitialState = (versionId) => {

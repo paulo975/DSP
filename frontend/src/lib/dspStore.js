@@ -38,10 +38,12 @@ const loadFromStorage = () => {
       ...i,
       description: i.description ?? "",
       category: i.category ?? "none",
+      linkedTo: i.linkedTo ?? null,
     }));
     parsed.outputs = (parsed.outputs || []).map((o) => ({
       ...o,
       category: o.category ?? "none",
+      linkedTo: o.linkedTo ?? null,
     }));
     // Scenes were added later — default to an empty list to keep older saves
     // loadable.
@@ -83,6 +85,41 @@ const reducer = (state, action) => {
         i.id === action.id ? { ...i, ...action.patch } : i,
       );
       return { ...state, inputs };
+    }
+    // ---------- Stereo link ----------
+    // Pair two channels of the SAME kind so that gain/mute/solo are mirrored.
+    // The link is stored symmetrically on both channels for O(1) lookup.
+    case "linkChannels": {
+      const { aId, bId } = action;
+      if (!aId || !bId || aId === bId) return state;
+      const allCh = [...state.inputs, ...state.outputs];
+      const a = allCh.find((c) => c.id === aId);
+      const b = allCh.find((c) => c.id === bId);
+      if (!a || !b || a.kind !== b.kind) return state;
+      // Break any pre-existing links on either side before pairing.
+      const breakOn = (arr, id) => arr.map((c) => (c.linkedTo === id ? { ...c, linkedTo: null } : c));
+      let inputs = breakOn(state.inputs, aId);
+      inputs = breakOn(inputs, bId);
+      let outputs = breakOn(state.outputs, aId);
+      outputs = breakOn(outputs, bId);
+      // Apply new symmetric link + mirror b's gain/mute/solo to a (Right inherits Left).
+      const apply = (arr) =>
+        arr.map((c) => {
+          if (c.id === aId) return { ...c, linkedTo: bId };
+          if (c.id === bId) return { ...c, linkedTo: aId, gain: a.gain, mute: a.mute, solo: a.solo };
+          return c;
+        });
+      return { ...state, inputs: apply(inputs), outputs: apply(outputs) };
+    }
+    case "unlinkChannels": {
+      // Unlink the channel identified by action.id AND its partner (if any).
+      const id = action.id;
+      const allCh = [...state.inputs, ...state.outputs];
+      const me = allCh.find((c) => c.id === id);
+      const partnerId = me?.linkedTo;
+      const strip = (arr) =>
+        arr.map((c) => (c.id === id || c.id === partnerId ? { ...c, linkedTo: null } : c));
+      return { ...state, inputs: strip(state.inputs), outputs: strip(state.outputs) };
     }
     case "toggleRoute": {
       const { outId, inId } = action;
@@ -258,6 +295,18 @@ export const DspProvider = ({ children }) => {
       }
       return fn(...args);
     };
+    // Fields that are mirrored across a stereo link. EQ / delay / routing
+    // intentionally stay independent — engineers commonly time-align L/R
+    // separately or use slight EQ tilts for room acoustics.
+    const LINK_MIRROR = ["gain", "mute", "solo"];
+    const linkedPatch = (patch) => {
+      const out = {};
+      for (const k of LINK_MIRROR) if (k in patch) out[k] = patch[k];
+      return out;
+    };
+    const findInput = (id) => state.inputs.find((c) => c.id === id);
+    const findOutput = (id) => state.outputs.find((c) => c.id === id);
+
     return {
       state,
       dispatch,
@@ -265,15 +314,32 @@ export const DspProvider = ({ children }) => {
       setReadOnly,
       toggleReadOnly: () => setReadOnly((v) => !v),
       // helpers — all wrapped by the read-only guard
-      updateOutput: guard((id, patch) => dispatch({ type: "updateOutput", id, patch })),
+      updateOutput: guard((id, patch) => {
+        dispatch({ type: "updateOutput", id, patch });
+        const me = findOutput(id);
+        if (me?.linkedTo) {
+          const shared = linkedPatch(patch);
+          if (Object.keys(shared).length) dispatch({ type: "updateOutput", id: me.linkedTo, patch: shared });
+        }
+      }),
       updateOutputDeep: guard((id, fn) => dispatch({ type: "updateOutputDeep", id, fn })),
-      updateInput: guard((id, patch) => dispatch({ type: "updateInput", id, patch })),
+      updateInput: guard((id, patch) => {
+        dispatch({ type: "updateInput", id, patch });
+        const me = findInput(id);
+        if (me?.linkedTo) {
+          const shared = linkedPatch(patch);
+          if (Object.keys(shared).length) dispatch({ type: "updateInput", id: me.linkedTo, patch: shared });
+        }
+      }),
       toggleRoute: guard((outId, inId) => dispatch({ type: "toggleRoute", outId, inId })),
       clearRoutes: guard(() => dispatch({ type: "clearRoutes" })),
       setVersion: guard((version) => dispatch({ type: "setVersion", version })),
       setMaster: guard((patch) => dispatch({ type: "setMaster", patch })),
       resetChannel: guard((id) => dispatch({ type: "resetChannel", id })),
       setAllPinkNoise: guard((enabled, level, noiseType) => dispatch({ type: "setAllPinkNoise", enabled, level, noiseType })),
+      // Stereo link helpers — also guarded under read-only.
+      linkChannels: guard((aId, bId) => dispatch({ type: "linkChannels", aId, bId })),
+      unlinkChannels: guard((id) => dispatch({ type: "unlinkChannels", id })),
       // Scene memory — see reducer cases above.
       createScene: guard((name, color) => dispatch({ type: "createScene", name, color })),
       overwriteScene: guard((id) => dispatch({ type: "overwriteScene", id })),

@@ -7,6 +7,15 @@ import { useDsp } from "@/lib/dspStore";
 import { audioEngine } from "@/lib/audioEngine";
 import { getCategory } from "@/lib/channelCategories";
 
+// Find the "next" same-kind channel adjacent to `ch` for quick-link.
+// Looks 1 index ahead first, falls back to 1 index behind if missing.
+const findLinkCandidate = (ch, all) => {
+  const sameKind = all.filter((c) => c.kind === ch.kind);
+  const i = sameKind.findIndex((c) => c.id === ch.id);
+  if (i < 0) return null;
+  return sameKind[i + 1] || sameKind[i - 1] || null;
+};
+
 // Live RMS-derived meter for an input bus. Reads from the existing engine
 // analyser via requestAnimationFrame — keeps the visual cheap (no React state
 // per frame, mutates a ref + DOM directly).
@@ -54,11 +63,23 @@ const pctToDb = (pct) => {
 const SCALE_TICKS = [12, 6, 3, 0, -3, -6, -12, -30, -60];
 
 const InputStrip = ({ input }) => {
-  const { updateInput, readOnly } = useDsp();
+  const { state, updateInput, linkChannels, unlinkChannels, readOnly } = useDsp();
   const trackRef = React.useRef(null);
 
   const tid = (k) => `in-${input.id}-${k}`;
   const display = input.mute ? "MUTE" : input.gain.toFixed(0);
+
+  // Resolve link partner (if any) for the visual badge.
+  const partner = input.linkedTo ? state.inputs.find((c) => c.id === input.linkedTo) : null;
+  const handleLink = () => {
+    if (readOnly) return;
+    if (input.linkedTo) {
+      unlinkChannels(input.id);
+      return;
+    }
+    const cand = findLinkCandidate(input, state.inputs);
+    if (cand) linkChannels(input.id, cand.id);
+  };
 
   // Pointer drag on the fader track — gives a buttery, touch-friendly feel
   // without relying on the native <input range> appearance.
@@ -141,6 +162,27 @@ const InputStrip = ({ input }) => {
         }}
       >
         SOLO
+      </button>
+
+      {/* Stereo Link — pair adjacent same-kind channel; gain/mute/solo mirrored.
+          Click to toggle. Hover hint shows partner index. */}
+      <button
+        onClick={handleLink}
+        disabled={readOnly}
+        data-testid={tid("link")}
+        title={
+          partner
+            ? `Linked to ${partner.name} — click to unlink (gain/mute/solo mirrored)`
+            : `Stereo-link with next channel (gain/mute/solo will mirror)`
+        }
+        className="w-[74px] h-6 rounded-sm mb-3 font-bold text-[9px] tracking-[0.2em] transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+        style={{
+          background: partner ? "#A855F7" : "transparent",
+          color: partner ? "#000" : "#666",
+          border: `1px solid ${partner ? "#A855F7" : "#2a2a2a"}`,
+        }}
+      >
+        🔗 {partner ? `LINK ${partner.index + 1}` : "LINK"}
       </button>
 
       {/* Fader assembly — track + scale ticks + cap + callout + bus meter */}

@@ -26,6 +26,14 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — Channel Link Estéreo)
+- ✅ **🔗 LINK** button on every InputStrip and ChannelStrip (purple `#A855F7`). Click pairs the channel with the adjacent same-kind neighbour; click again to unlink. Hover tooltip names the current partner.
+- ✅ **Symmetric link state**: each channel gets a `linkedTo: <partnerId | null>` field stored in `localStorage`. Reducer cases `linkChannels` / `unlinkChannels` keep the link bi-directional and break any pre-existing pairs before forming a new one.
+- ✅ **Mirrored fields**: `gain`, `mute`, `solo` propagate automatically via the `updateInput` / `updateOutput` helpers when `linkedTo` is set. EQ / delay / pan / crossover stay independent (engineers commonly time-align or EQ-trim L/R separately).
+- ✅ **State migration**: pre-existing localStorage saves get `linkedTo: null` injected on load — no breakage.
+- ✅ **Scene compatibility**: scenes still capture `{id, mute, gain, solo}` per channel; on recall, linked propagation is a no-op because both partner gains/mutes/solos are restored from the snapshot. No conflict.
+- ✅ **E2E tested in browser**: linking OUT1↔OUT2 mirrors MUTE both directions; linking IN1↔IN2 mirrors SOLO; unlinking strips both sides and channels become independent again.
+
 ## What's Been Implemented (2026-02-13 — AudioSystem DSP File **Exporter** · round-trip safe)
 - ✅ **⇧ Export** button in TopBar produces a `.audiosystemdsp` file that the original Windows software / hardware can load back.
 - ✅ **Round-trip strategy**: the ~42 KB DSP processing block (EQ / comp / delay / routing matrix) is still proprietary and undocumented, so the exporter **never synthesises it from scratch**. Instead it patches only the channel-name bytes inside a previously imported real file (the "template").

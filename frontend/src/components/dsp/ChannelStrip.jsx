@@ -34,7 +34,7 @@ const Btn = ({ active, color = "#FF6B00", textActive = "#000", onClick, children
 );
 
 const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
-  const { updateOutput, updateOutputDeep, resetChannel } = useDsp();
+  const { state, updateOutput, updateOutputDeep, resetChannel, linkChannels, unlinkChannels, readOnly } = useDsp();
 
   const setField = (patch) => updateOutput(output.id, patch);
   const setDeep = (path, value) => {
@@ -46,6 +46,24 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
       cur[segs[segs.length - 1]] = value;
       return next;
     });
+  };
+
+  // Stereo-link partner (output of same kind). Quick-link uses adjacent index.
+  const partner = output.linkedTo ? state.outputs.find((o) => o.id === output.linkedTo) : null;
+  const findOutputLinkCandidate = () => {
+    const sameKind = state.outputs.filter((c) => c.kind === output.kind);
+    const i = sameKind.findIndex((c) => c.id === output.id);
+    if (i < 0) return null;
+    return sameKind[i + 1] || sameKind[i - 1] || null;
+  };
+  const handleLink = () => {
+    if (readOnly) return;
+    if (output.linkedTo) {
+      unlinkChannels(output.id);
+      return;
+    }
+    const cand = findOutputLinkCandidate();
+    if (cand) linkChannels(output.id, cand.id);
   };
 
   const isVirtual = output.kind === "out_virt";
@@ -142,6 +160,20 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
         </Btn>
         <Btn active={output.solo} color="#FFD60A" onClick={() => setField({ solo: !output.solo })} testId={tid("solo")} full>
           SOLO
+        </Btn>
+      </div>
+
+      {/* ----- Stereo Link — mirrors gain/mute/solo with paired output ----- */}
+      <div className="px-2 pt-1">
+        <Btn
+          active={!!partner}
+          color="#A855F7"
+          onClick={handleLink}
+          testId={tid("link")}
+          title={partner ? `Linked to ${partner.name} (${partner.index + 1}) — click to unlink` : "Stereo-link with next output (gain/mute/solo mirrored)"}
+          full
+        >
+          🔗 {partner ? `LINK ${partner.index + 1}` : "LINK"}
         </Btn>
       </div>
 
