@@ -35,6 +35,7 @@ export const defaultChannel = (idx, kind) => ({
           ? `OUT ${idx + 1}`
           : `VOUT ${idx + 1}`,
   description: "", // free text — what this channel is used for (e.g. "Lead Vocal", "Sub L")
+  category: "none", // scribble-strip colour tag — see channelCategories.js
   gain: 0, // dB, -60..+12
   mute: false,
   solo: false,

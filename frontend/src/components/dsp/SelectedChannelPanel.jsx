@@ -1,6 +1,7 @@
 import React from "react";
 import { useDsp } from "@/lib/dspStore";
 import { formatDelay } from "@/lib/dspDefaults";
+import { CHANNEL_CATEGORIES } from "@/lib/channelCategories";
 import InlineEqGraph, { BAND_COLORS } from "./InlineEqGraph";
 import CompCurve from "./CompCurve";
 import GRMeter from "./GRMeter";
@@ -93,6 +94,26 @@ const SelectedChannelPanel = ({ outputId, onOpenEq, onOpenComp, onClose }) => {
                 data-testid="sel-channel-description"
                 title="Free-text description: what is this channel used for?"
               />
+              {/* Category color picker — scribble strip colour for this channel */}
+              <div className="flex items-center gap-1" data-testid="sel-category-group">
+                <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-neutral-500">Cat</span>
+                {CHANNEL_CATEGORIES.map((c) => {
+                  const active = (out.category || "none") === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setField({ category: c.id })}
+                      data-testid={`sel-category-${c.id}`}
+                      title={c.name}
+                      className="w-4 h-4 rounded-sm transition-transform hover:scale-110"
+                      style={{
+                        background: c.id === "none" ? "transparent" : c.color,
+                        border: `1.5px solid ${active ? "#fff" : c.id === "none" ? "#444" : "transparent"}`,
+                      }}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

@@ -3,8 +3,25 @@ import { useDsp } from "@/lib/dspStore";
 import { VERSIONS } from "@/lib/dspDefaults";
 import { audioEngine } from "@/lib/audioEngine";
 
+const Clock = () => {
+  const [time, setTime] = React.useState(new Date());
+  React.useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    <div
+      className="px-3 py-1 font-mono text-[11px] tabular-nums text-[#00FF41] bg-black border border-neutral-800 rounded-sm"
+      data-testid="top-clock"
+    >
+      {pad(time.getHours())}:{pad(time.getMinutes())}:{pad(time.getSeconds())}
+    </div>
+  );
+};
+
 const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint }) => {
-  const { state, setVersion, setMaster, setAllPinkNoise, readOnly, toggleReadOnly } = useDsp();
+  const { state, setVersion, setMaster, setAllPinkNoise, clearAllSolo, setTalkback, readOnly, toggleReadOnly } = useDsp();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState(null);
   const [playing, setPlaying] = useState(false);
@@ -157,6 +174,37 @@ const TopBar = ({ tab, setTab, onOpenPresets, onOpenPrint }) => {
           <span className="text-[10px] font-mono text-neutral-500 truncate max-w-[180px]" data-testid="audio-file-name">
             {fileName || "no file"}
           </span>
+        </div>
+
+        {/* Live-show shortcuts: Clear-Solo + Talkback + Wall-clock — Waves-eMotion-style */}
+        <div className="flex items-center gap-2 px-4 border-r border-neutral-800">
+          <button
+            onClick={clearAllSolo}
+            disabled={readOnly}
+            data-testid="top-clr-solo"
+            title="Clear solo on every input and output"
+            className="px-3 py-1.5 border border-[#FFD60A] text-[#FFD60A] text-[10px] font-mono uppercase tracking-[0.18em] font-bold hover:bg-[#FFD60A] hover:text-black transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            CLR SOLO
+          </button>
+          <button
+            onPointerDown={() => setTalkback(true)}
+            onPointerUp={() => setTalkback(false)}
+            onPointerLeave={() => setTalkback(false)}
+            disabled={readOnly}
+            data-testid="top-talk"
+            title="Hold to dim program output (talkback)"
+            className="px-3 py-1.5 border text-[10px] font-mono uppercase tracking-[0.18em] font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed select-none"
+            style={{
+              background: state.talkback ? "#FF3B30" : "transparent",
+              color: state.talkback ? "#000" : "#FF3B30",
+              borderColor: "#FF3B30",
+              boxShadow: state.talkback ? "0 0 12px rgba(255,59,48,0.6)" : "none",
+            }}
+          >
+            🎤 TALK
+          </button>
+          <Clock />
         </div>
 
         {/* Test Signal Generator: PINK / WHITE / SWEEP — broadcasts to ALL output chain inputs */}

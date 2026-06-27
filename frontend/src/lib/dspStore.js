@@ -37,6 +37,11 @@ const loadFromStorage = () => {
     parsed.inputs = (parsed.inputs || []).map((i) => ({
       ...i,
       description: i.description ?? "",
+      category: i.category ?? "none",
+    }));
+    parsed.outputs = (parsed.outputs || []).map((o) => ({
+      ...o,
+      category: o.category ?? "none",
     }));
     // Scenes were added later — default to an empty list to keep older saves
     // loadable.
@@ -157,6 +162,17 @@ const reducer = (state, action) => {
       const outputs = state.outputs.map((o) => merge(o, scene.outputs.find((x) => x.id === o.id)));
       return { ...state, inputs, outputs, lastRecalledSceneId: action.id };
     }
+    case "clearAllSolo": {
+      // Global "Clear Solo" — wipes solo flag on every input and output.
+      const inputs = state.inputs.map((i) => (i.solo ? { ...i, solo: false } : i));
+      const outputs = state.outputs.map((o) => (o.solo ? { ...o, solo: false } : o));
+      return { ...state, inputs, outputs };
+    }
+    case "setTalkback": {
+      // Talkback engages an "all-output mute" while held by the operator —
+      // typical live-show flow. Stored as a transient flag on the state root.
+      return { ...state, talkback: !!action.on };
+    }
     default:
       return state;
   }
@@ -211,9 +227,9 @@ export const DspProvider = ({ children }) => {
   useEffect(() => {
     if (builtForVersionRef.current !== state.version) return;
     state.outputs.forEach((o) => audioEngine.applyChannel(o));
-    audioEngine.applyMaster(state.masterGain, state.masterMute);
+    audioEngine.applyMaster(state.masterGain, state.masterMute, state.talkback);
     audioEngine.applySoloLogic(state);
-  }, [state.outputs, state.masterGain, state.masterMute, state.version]);
+  }, [state.outputs, state.masterGain, state.masterMute, state.talkback, state.version]);
 
   // Apply per-input fader/mute/solo to the input buses (zero rebuild cost).
   useEffect(() => {
@@ -262,6 +278,8 @@ export const DspProvider = ({ children }) => {
       // Recall is allowed in read-only because it's a "viewing" action of a stored
       // snapshot — same logic as loadPresetState. (Could be guarded if needed.)
       recallScene: (id) => dispatch({ type: "recallScene", id }),
+      clearAllSolo: guard(() => dispatch({ type: "clearAllSolo" })),
+      setTalkback: guard((on) => dispatch({ type: "setTalkback", on })),
       // Unguarded: user-initiated viewing actions.
       loadPresetState: (s) => dispatch({ type: "loadPreset", state: s }),
     };

@@ -5,6 +5,7 @@
 import React from "react";
 import { useDsp } from "@/lib/dspStore";
 import { audioEngine } from "@/lib/audioEngine";
+import { getCategory } from "@/lib/channelCategories";
 
 // Live RMS-derived meter for an input bus. Reads from the existing engine
 // analyser via requestAnimationFrame — keeps the visual cheap (no React state
@@ -89,6 +90,21 @@ const InputStrip = ({ input }) => {
 
   return (
     <div className="w-[88px] bg-[#0a0a0a] border-r border-neutral-900 flex flex-col items-center pt-2 pb-3 select-none" data-testid={tid("strip")}>
+      {/* Scribble strip — colour-coded category tag (Waves eMotion LV1 style) */}
+      {(() => {
+        const cat = getCategory(input.category);
+        if (cat.id === "none") return null;
+        return (
+          <div
+            className="w-[74px] h-3 mb-1 flex items-center justify-center text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-black rounded-sm"
+            style={{ background: cat.color }}
+            data-testid={tid("category-tag")}
+          >
+            {cat.name}
+          </div>
+        );
+      })()}
+
       {/* Header pill — channel label */}
       <div
         className="w-[74px] h-7 rounded-sm bg-[#1a1a1a] border border-neutral-800 flex items-center justify-center mb-3"

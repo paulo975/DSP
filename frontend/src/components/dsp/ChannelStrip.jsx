@@ -1,6 +1,7 @@
 import React from "react";
 import { useDsp } from "@/lib/dspStore";
 import { formatDelay } from "@/lib/dspDefaults";
+import { getCategory } from "@/lib/channelCategories";
 import Knob from "./Knob";
 import Meter from "./Meter";
 
@@ -57,6 +58,22 @@ const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
       style={{ borderRightColor: selected ? "#00B7FF" : "#262626", boxShadow: selected ? "inset 0 2px 0 0 #00B7FF" : "none" }}
       data-testid={`channel-strip-${output.id}`}
     >
+      {/* ----- Scribble strip — colour-coded category tag (Waves eMotion LV1 style) ----- */}
+      {(() => {
+        const cat = getCategory(output.category);
+        if (cat.id === "none") return null;
+        return (
+          <div
+            className="h-3 flex items-center justify-center text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-black"
+            style={{ background: cat.color }}
+            data-testid={tid("category-tag")}
+            title={`Category: ${cat.name}`}
+          >
+            {cat.name}
+          </div>
+        );
+      })()}
+
       {/* ----- Header (clickable to select) ----- */}
       <div
         onClick={() => onSelect?.(output.id)}

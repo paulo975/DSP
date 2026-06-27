@@ -418,10 +418,13 @@ class AudioEngine {
     );
   }
 
-  applyMaster(masterGainDb, mute) {
+  // Talkback while held — overrides master gain to 0 to dim the program.
+  // Implementation choice: cheapest possible — reuse the master node's gain.
+  // When talkback is released, applyMaster() restores the dialled-in value.
+  applyMaster(masterGainDb, mute, talkback = false) {
     if (!this.master || !this.ctx) return;
     const now = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(mute ? 0 : dbToGain(masterGainDb), now, 0.005);
+    this.master.gain.setTargetAtTime((mute || talkback) ? 0 : dbToGain(masterGainDb), now, 0.005);
   }
 
   applySoloLogic(state) {
