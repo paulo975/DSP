@@ -1,0 +1,45 @@
+{
+  "summary": "Re-tested the 1-line heuristic fix in detectProfile() (added '&& activeCount <= 4' to the low-delay home-studio bonus). All 4 scenarios from the request PASS exactly as specified. The iteration-19 confidence regression at 8 routed outputs is resolved without breaking the default-state HIGH-confidence path or the empty-routing fallback.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "scenario_results": {
+    "scenario_1_default_HIGH_home_studio": {
+      "expected": {"profile": "Home Studio", "confidence": "HIGH CONFIDENCE", "reasons_include": ["Only 2 active", "Very low delay"]},
+      "observed": {"profile": "Home Studio", "confidence": "HIGH CONFIDENCE", "summary": "2 active · avg delay 0.0 ms · 0 crossover(s)", "reasons": ["Only 2 active output(s) → near-field setup", "Very low delay (avg 0.0 ms)"]},
+      "status": "PASS"
+    },
+    "scenario_2_eight_outputs_MEDIUM_car_audio": {
+      "expected": {"profile": "Car Audio", "confidence": "MEDIUM CONFIDENCE", "summary_contains": "8 active", "reasons_at_least": 2, "reasons_must_not_include": "Very low delay"},
+      "observed": {"profile": "Car Audio", "confidence": "MEDIUM CONFIDENCE", "summary": "8 active · avg delay 0.0 ms · 0 crossover(s)", "reasons": ["8 active outputs → small/medium system", "Moderate delay (avg 0.0 ms) — car/time-aligned"]},
+      "matrix_verification": "in_phy_0 routed to out_phy_0..out_phy_7 (8 active outputs total) confirmed via dsp_state_v1 inspection",
+      "status": "PASS"
+    },
+    "scenario_3_empty_routing_LOW_car_audio": {
+      "expected": {"profile": "Car Audio", "confidence": "LOW CONFIDENCE", "reasons_0": "No outputs are routed yet — defaulting to Car Audio."},
+      "observed": {"profile": "Car Audio", "confidence": "LOW CONFIDENCE", "summary": "0 active outputs", "reasons": ["No outputs are routed yet — defaulting to Car Audio."]},
+      "status": "PASS"
+    },
+    "scenario_4_smoke_render": {
+      "expected": "cal-profile-bar with 4 buttons + open-one-click + open-auto-capture + open-snapshot + meters-popout all render",
+      "observed": {"cal-profile-bar": true, "profile_button_count": 4, "open-one-click": true, "open-auto-capture": true, "open-snapshot": true, "meters-popout": true, "cal-detect": true},
+      "status": "PASS"
+    }
+  },
+  "test_report_links": ["/app/test_reports/iteration_20.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix is minimal and well-scoped: line 153 in calibrationProfiles.js gates the home-studio low-delay bonus on `activeCount <= 4`. Comment block (lines 154-156) clearly documents intent. No regression risk to other branches.",
+    "Suggestion (non-blocking, carry-over from iteration 19): MetersView.jsx detection banner IIFE (lines 224-290) would benefit from extraction into a dedicated <CalDetectBanner/> component for readability — file is still under the 700-line threshold so not urgent."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only test)", "frontend": "100% (4/4 scenarios pass)"},
+  "seed_data_creation": "None. Each scenario clears localStorage and reloads; scenario 2 toggles 6 matrix cells via route-in_phy_0-out_phy_2..7 testids; scenario 3 toggles off the 2 default routes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The detectProfile heuristic change is verified end-to-end. The scoring at 8 routed outputs + zero delays is now car-audio=4 (band +2, moderate-delay +2), live-band=1, home-studio=0, house-of-worship=0 → margin 3 → MEDIUM. Default 2-output state still hits home-studio=5 vs runner-up 0 → HIGH. Empty routing short-circuits to the early-return LOW path. Matrix cell testids confirmed at pattern 'route-{inputId}-{outputId}' in MatrixRouter.jsx:99. dsp_state_v1 localStorage key holds the persisted zustand state if state mutation via JS is ever needed as a fallback.",
+  "rca_of_the_issue": "Iteration-19 root cause (home-studio +2 low-delay bonus tying car-audio at 8 routed outputs) is fixed by the conjunct '&& activeCount <= 4' at calibrationProfiles.js:153. The bonus now fires only for small/near-field setups, allowing the active-count band and moderate-delay branch to both award car-audio cleanly at >4 outputs."
+}

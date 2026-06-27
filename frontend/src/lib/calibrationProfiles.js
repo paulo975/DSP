@@ -150,7 +150,10 @@ export const detectProfile = (state) => {
     reasons.push(`${activeCount} active outputs → large distributed system`);
   }
 
-  if (avgDelay < 2 && maxDelay < 5) {
+  if (avgDelay < 2 && maxDelay < 5 && activeCount <= 4) {
+    // Low-delay bonus only fires for small systems — otherwise it gives a
+    // false tie against larger live/install setups that also happen to start
+    // with zero delay before time-alignment is dialled in.
     scores["home-studio"] += 2;
     reasons.push(`Very low delay (avg ${avgDelay.toFixed(1)} ms)`);
   } else if (avgDelay < 8) {
