@@ -26,6 +26,19 @@ The user requested a web-based React + Python re-implementation inspired by the 
 5. **Audio file upload + playback** — feeds the audio graph for real-time monitoring.
 6. **State must persist** across page reloads — fixes the original "doesn't save delays" bug.
 
+## What's Been Implemented (2026-02-13 — AudioSystem DSP File Importer · v2 real-file verified)
+- ✅ **⇩ Import** button in TopBar opens a modal that accepts an AudioSystem DSP binary project file (`.audiosystemdsp` / `.dsp`) via drag-and-drop or file browser.
+- ✅ **Binary parser** (`/app/frontend/src/lib/dspBinaryImporter.js`) — reverse-engineered from a real 45 128-byte project file:
+  - MAGIC = `B0 04 E0 E3` (4 bytes)
+  - TERM = `E8 03 40 ED` (4 bytes)
+  - Input record = 40 bytes: magic(4) header(6) name(16) term(4) tail(10)
+  - Output record = 34 bytes: magic(4) header(4) name(16) term(4) tail(6)
+  - 32 input names start at offset 0x14; 32 output names at offset 0xAB88 (after a ~42 KB block of EQ/delay/comp/routing parameters — out of scope for this iteration).
+- ✅ **Verified end-to-end** against the user-supplied `16.audiosystemdsp` file: all 64 names (FRONT L / CENTER / SUB FRONT / M AUDIO / C JBL625 / C JBL 620 L/R / C JM809 L/R / WIDE 1L/2L/1R/2R / SURR L/R / SUB L/C/R / IN9-32 / OUT17-32) extracted correctly and split 32/32 to state.inputs/state.outputs.
+- ✅ Auto-Categorisation correctly tags **SUB FRONT → BASS**, **SUB L/C/R → BASS**, **FRONT/CENTER/SURR/WIDE → MIC**.
+- ✅ Two-column preview + Auto-tag toggle + Apply CTA + read-only safety + bad-file error all functional.
+- ❌ **Out of scope (still)** — EQ / delay / routing / dynamics import. The 42 KB gap between input and output blocks holds these but mapping them to bytes safely requires 2-3 more sample files with **known differences** (e.g., one file with only EQ on channel 1, another with only delay on channel 14). See ROADMAP for the request.
+
 ## What's Been Implemented (2026-02-13 — AudioSystem DSP File Importer)
 - ✅ **⇩ Import** button in TopBar opens a modal that accepts an AudioSystem DSP binary project file (.dsp) via drag-and-drop or file browser.
 - ✅ **Binary parser** (`/app/frontend/src/lib/dspBinaryImporter.js`) scans for the magic byte sequence `0xB0 0xE0 0xE3` and terminator `0xE8 0x40 0xED` to extract ASCII channel names. Real 64-record exports split exactly 32 inputs / 32 outputs; smaller test files use a half-split heuristic (`Math.ceil(N/2)`).
@@ -147,6 +160,7 @@ The user requested a web-based React + Python re-implementation inspired by the 
 - **Iteration 25 (2026-02-13)**: 100% — Waves eMotion LV1 layout refinements (scribble strip categories, CLR SOLO, TALK push-to-talk, wall clock). Migration verified for older saves. Reviewer hardening applied: talkback never persists across reload. Report: `/app/test_reports/iteration_25.json`.
 - **Iteration 26 (2026-02-13)**: 8/10 — AudioSystem DSP File Importer (channel names + auto-categorise). 1 HIGH-priority parser bug: hard-coded 32/32 split missed outputs for <64-record files. Report: `/app/test_reports/iteration_26.json`.
 - **Iteration 27 (2026-02-13)**: 100% (3/3) — Fix verified: data-driven half-split when `all.length < 64`, exact 32/32 boundary preserved for real exports. Stale preview reset on new file. Report: `/app/test_reports/iteration_27.json`.
+- **Iteration 28 (2026-02-13)**: Parser ported to the real binary format (4-byte MAGIC `B0 04 E0 E3` + 4-byte TERM `E8 03 40 ED`) after a real `.audiosystemdsp` sample arrived. Verified manually: all 64 channel names from the user's 45 128-byte project (`16.audiosystemdsp`) extract correctly and apply to the dsp store with proper categories.
 
 ## Prioritized Backlog
 ### P1 (next session)

@@ -10,29 +10,40 @@
 // prefixed with the magic byte sequence 0xB0 0xE0 0xE3 and terminated by
 // 0xE8 0x40 0xED. The ordering observed: first 32 records = inputs,
 // remaining records = outputs (in the same physical → virtual order).
-const MAGIC = [0xB0, 0xE0, 0xE3];
-const TERM = [0xE8, 0x40, 0xED];
-const NAME_MAX_LEN = 32; // generous — names observed are <= ~12 chars
-const NAME_MIN_OFFSET = 3; // skip the magic itself
+// Real AudioSystem DSP project file layout (reverse-engineered from sample
+// 16.audiosystemdsp, 45 128 bytes, 32 in + 32 out):
+//
+//   Input record  (40 bytes): MAGIC(4) header(6) name(16) TERM(4) tail(10)
+//   Output record (34 bytes): MAGIC(4) header(4) name(16) TERM(4) tail(6)
+//
+// MAGIC = B0 04 E0 E3
+// TERM  = E8 03 40 ED
+// Name is ASCII, null-padded right.
+const MAGIC = [0xB0, 0x04, 0xE0, 0xE3];
+const TERM = [0xE8, 0x03, 0x40, 0xED];
+const NAME_MAX_LEN = 24; // bytes between magic and term — safe upper bound
 
 // Find every magic-prefixed name record in the buffer and return them as
-// trimmed ASCII strings in file order.
+// trimmed ASCII strings in file order. We scan for the 4-byte magic, then
+// read printable ASCII bytes up to the next 4-byte terminator (or the next
+// magic — whichever comes first).
 const findAllNames = (bytes) => {
   const names = [];
-  for (let i = 0; i < bytes.length - 3; i++) {
-    if (bytes[i] !== MAGIC[0] || bytes[i + 1] !== MAGIC[1] || bytes[i + 2] !== MAGIC[2]) continue;
-    // Search forward for the terminator OR another magic — whichever comes first.
-    const start = i + NAME_MIN_OFFSET;
-    let end = Math.min(start + NAME_MAX_LEN, bytes.length - 3);
+  const isMagicAt = (i) => bytes[i] === MAGIC[0] && bytes[i + 1] === MAGIC[1] && bytes[i + 2] === MAGIC[2] && bytes[i + 3] === MAGIC[3];
+  const isTermAt = (i) => bytes[i] === TERM[0] && bytes[i + 1] === TERM[1] && bytes[i + 2] === TERM[2] && bytes[i + 3] === TERM[3];
+  for (let i = 0; i < bytes.length - 4; i++) {
+    if (!isMagicAt(i)) continue;
+    // Scan window: from end-of-magic to either next term or next magic.
+    const start = i + 4;
+    let end = Math.min(start + NAME_MAX_LEN + 4, bytes.length - 4);
     for (let j = start; j < end; j++) {
-      if (bytes[j] === TERM[0] && bytes[j + 1] === TERM[1] && bytes[j + 2] === TERM[2]) { end = j; break; }
-      if (bytes[j] === MAGIC[0] && bytes[j + 1] === MAGIC[1] && bytes[j + 2] === MAGIC[2]) { end = j; break; }
+      if (isTermAt(j)) { end = j; break; }
+      if (isMagicAt(j)) { end = j; break; }
     }
-    // ASCII-decode, strip nulls, collapse runs of whitespace, trim.
+    // Decode ASCII printable characters only; skip header/tail nulls + control bytes.
     let s = "";
     for (let j = start; j < end; j++) {
       const c = bytes[j];
-      // Filter control bytes; keep printable ASCII (32..126).
       if (c >= 32 && c <= 126) s += String.fromCharCode(c);
     }
     s = s.replace(/\s+/g, " ").trim();
