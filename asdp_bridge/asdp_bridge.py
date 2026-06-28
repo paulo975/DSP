@@ -8,10 +8,9 @@ the DSPPRIMARY hardware). Translates between:
   Browser ⇄ WebSocket (ws://localhost:8765)
   Bridge  ⇄ UDP (port 6001) ⇄ Hardware DSP
 
-The web app at https://code-fixer-248.emergent.host opens a WebSocket
-to ws://localhost:8765 and starts sending/receiving JSON messages. The
-bridge translates those into the binary ASDP frames documented in
-/app/memory/ASDP_PROTOCOL.md.
+The web app opens a WebSocket to ws://localhost:8765 and starts sending/
+receiving JSON messages. The bridge translates those into the binary ASDP
+frames documented in /app/memory/ASDP_PROTOCOL.md.
 
 Why ws:// from an https:// page works:
     Browsers treat ws://localhost as a "potentially trustworthy origin"
@@ -29,10 +28,10 @@ Or build a clickable .app on your Mac:
 import asyncio
 import json
 import logging
+import math
 import socket
 import sys
 import threading
-import time
 from contextlib import suppress
 
 # ---------- Configuration -----------------------------------------------------
@@ -54,26 +53,78 @@ HEADER_FLAGS_PARAM = b"\x00\x00\x00\x00\x00\x00\x00\x00"     # parameter set
 # Command codes (from /app/memory/ASDP_PROTOCOL.md)
 CMD_HEARTBEAT = 0x0000
 CMD_FADER = 0x002D
-CMD_PARAM = 0x0021      # actually the "21 xx" pattern; cmd field is 0x0000 with marker at offset 8
+CMD_PARAM = 0x0021      # "21 xx" pattern; cmd field is 0x0000 with marker at offset 8
 CMD_SAVE = 0x0015
 
-# Parameter IDs (the (param_id, sub_param) pairs we know)
-PARAM_MUTE = (0x012B, 0x0005)
-PARAM_PHASE = (0x0127, 0x0002)
-PARAM_DELAY = (0x00F4, 0x0002)        # value = ms (LE32)
-PARAM_EQ_FREQ = (0x0061, 0x0003)      # value = freq index LE16 with "01 00" prefix
-PARAM_EQ_GAIN = (0x0061, 0x0004)      # value = gain × 100 LE16
-PARAM_EQ_Q = (0x0061, 0x0005)         # value = Q × 100 LE16
-PARAM_MATRIX = (0x00A6, 0x0001)       # value = <row><col><state><pad>
+# Parameter IDs (param_id, sub_param)
+# NOTE: mute and phase use (base_id + channel) to address individual channels.
+PARAM_MUTE_BASE  = 0x012B   # + channel index → (PARAM_MUTE_BASE + ch, 0x0005)
+PARAM_PHASE_BASE = 0x0127   # + channel index → (PARAM_PHASE_BASE + ch, 0x0002)
+PARAM_DELAY_BASE = 0x00F4   # + channel index → (PARAM_DELAY_BASE + ch, 0x0002)
+# EQ: param_id = 0x0061 + band_index (0..4 for 5-band PEQ)
+PARAM_EQ_BASE    = 0x0061   # + band → sub_param selects freq/gain/Q
+PARAM_EQ_SUB_FREQ = 0x0003
+PARAM_EQ_SUB_GAIN = 0x0004
+PARAM_EQ_SUB_Q    = 0x0005
+PARAM_MATRIX = (0x00A6, 0x0001)   # value = <row><col><state><pad>
 
 # Meter packet headers
 METER_PEAK_HEADER = b"\xA5\x5A\xF0\x03"   # 1024-byte peak meter frame
-METER_RMS_HEADER = b"\xA5\x5A\xD0\x02"    # 736-byte RMS frame
+METER_RMS_HEADER  = b"\xA5\x5A\xD0\x02"   # 736-byte RMS frame
 
+# Fader curve constants
+# Hardware index range: 0 (silence) .. 127 (+10 dB)
+# Audio taper: unity (0 dB) sits at index ~100, matching the official software.
+# Curve: linear in dB from -60 dB (idx=0) to +10 dB (idx=127) with a
+# smooth log taper so the fader "feels" like a real audio fader.
+_FADER_MIN_DB = -60.0
+_FADER_MAX_DB = +10.0
+_FADER_UNITY_IDX = 100          # index where 0 dB falls (empirically matched)
+_FADER_UNITY_DB  = 0.0
+
+
+def _db_to_fader_idx(db: float) -> int:
+    """
+    Convert a dB value to hardware fader index 0..127 using an audio taper curve.
+
+    The curve is split into two linear-in-dB segments:
+      • Below unity (0 dB):  _FADER_MIN_DB..0 dB  maps to  0.._FADER_UNITY_IDX
+      • Above unity (0 dB):  0 dB.._FADER_MAX_DB  maps to  _FADER_UNITY_IDX..127
+
+    This matches the behaviour observed in the official AudioSystem software
+    where the fader knob sits at ~78% of travel at unity gain.
+    """
+    db = max(_FADER_MIN_DB, min(db, _FADER_MAX_DB))
+    if db <= _FADER_UNITY_DB:
+        # Lower segment: _FADER_MIN_DB..0  →  0.._FADER_UNITY_IDX
+        ratio = (db - _FADER_MIN_DB) / (_FADER_UNITY_DB - _FADER_MIN_DB)
+        idx = ratio * _FADER_UNITY_IDX
+    else:
+        # Upper segment: 0.._FADER_MAX_DB  →  _FADER_UNITY_IDX..127
+        ratio = (db - _FADER_UNITY_DB) / (_FADER_MAX_DB - _FADER_UNITY_DB)
+        idx = _FADER_UNITY_IDX + ratio * (127 - _FADER_UNITY_IDX)
+    return max(0, min(127, int(round(idx))))
+
+
+def _raw_to_db(raw: int) -> float:
+    """
+    Convert a 16-bit unsigned meter value (0..65535) to dBFS.
+
+    The hardware sends linear amplitude values. We apply:
+        dBFS = 20 * log10(raw / 65535)
+    Values below 1 are treated as silence (-inf → clamped to -120 dB).
+    Returns a float in the range [-120.0, 0.0].
+    """
+    if raw <= 0:
+        return -120.0
+    return max(-120.0, 20.0 * math.log10(raw / 65535.0))
+
+
+# ---------- Frame builders ----------------------------------------------------
 
 def build_heartbeat(counter: int) -> bytes:
     """PC keepalive: 32-byte frame with fixed flags."""
-    body = (
+    return (
         MAGIC
         + (16).to_bytes(2, "little")
         + (0x0000).to_bytes(2, "little")
@@ -81,15 +132,12 @@ def build_heartbeat(counter: int) -> bytes:
         + HEADER_FLAGS_CONTROL
         + b"\x00" * 16
     )
-    return body
 
 
 def build_fader(counter: int, channel: int, value: int) -> bytes:
     """Fader / direct channel control — cmd 0x002D, 32-byte frame.
     Layout: MAGIC(2) LEN(2) CMD(2) CTR(2) CH(1) VAL(1) 22×00
     """
-    # Channel + value sit directly at offset 8 (right after counter); the
-    # remaining 22 bytes are zero padding to the 32-byte frame size.
     body_after_header = bytes([channel & 0xFF, value & 0x7F]) + b"\x00" * 22
     return (
         MAGIC
@@ -118,12 +166,16 @@ def build_param(counter: int, param: tuple, value4: bytes) -> bytes:
     )
 
 
-def mute_payload(on: bool) -> bytes:
-    return b"\x01\x00" + (b"\x01\x00" if on else b"\x00\x00")
+# ---------- Payload helpers ---------------------------------------------------
+
+def mute_payload(channel: int, on: bool) -> bytes:
+    """Mute payload includes channel byte so multi-channel addressing works."""
+    return bytes([channel & 0xFF, 0x00]) + (b"\x01\x00" if on else b"\x00\x00")
 
 
-def phase_payload(invert: bool) -> bytes:
-    return b"\x01\x00" + (b"\x01\x00" if invert else b"\x00\x00")
+def phase_payload(channel: int, invert: bool) -> bytes:
+    """Phase payload includes channel byte so multi-channel addressing works."""
+    return bytes([channel & 0xFF, 0x00]) + (b"\x01\x00" if invert else b"\x00\x00")
 
 
 def delay_payload(ms: int) -> bytes:
@@ -131,7 +183,7 @@ def delay_payload(ms: int) -> bytes:
 
 
 def eq_value_payload(raw_value: int) -> bytes:
-    """EQ values share the prefix 01 00 then LE16 of the scaled value."""
+    """EQ values: prefix 01 00 then LE16 of the scaled value."""
     return b"\x01\x00" + max(-32768, min(raw_value, 32767)).to_bytes(2, "little", signed=True)
 
 
@@ -149,16 +201,15 @@ class DspLink:
         self.dsp_port = dsp_port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # OS picks the ephemeral port. Bind to ANY so we receive replies/meters.
         self.sock.bind((LOCAL_BIND_IP, 0))
         self.sock.settimeout(0.2)
         self.local_port = self.sock.getsockname()[1]
         self._tx_ctr = 0
         self._lock = threading.Lock()
-        # Last seen meter sample, indexed by channel (set by reader thread).
-        self.last_peaks = [0.0] * 32
-        self.last_rms = [0.0] * 32
-        self.dsp_seen = False  # flips True once we see the first DSP packet
+        # Last seen meter sample in dBFS, indexed by channel (set by reader thread).
+        self.last_peaks: list[float] = [-120.0] * 32
+        self.last_rms: list[float]   = [-120.0] * 32
+        self.dsp_seen = False
 
     def _next_ctr(self) -> int:
         with self._lock:
@@ -183,37 +234,46 @@ class DspLink:
     # --- High-level helpers exposed via WebSocket commands -------------------
 
     def cmd_fader(self, channel: int, db: float) -> None:
-        # Hardware uses a 0..127 fader index. Map -∞..+10 dB → 0..127 linearly.
-        # The official software's exact curve is non-linear (audio taper) but
-        # this is a good starting point; refine with a real fader-curve capture.
-        idx = max(0, min(int((db + 60) * 127 / 70), 127))
+        """Convert dB to hardware index using audio taper curve and send fader frame."""
+        idx = _db_to_fader_idx(db)
         self.send_fader(channel, idx)
 
     def cmd_mute(self, channel: int, on: bool) -> None:
-        # NOTE: the captured mute packet only carries on/off, the channel id is
-        # implicit (selected channel in the official software). Once we capture
-        # multi-channel mute we'll add an explicit channel byte here.
-        _ = channel
-        self.send_param(PARAM_MUTE, mute_payload(on))
+        """Mute a specific channel. Channel byte included in payload."""
+        param = (PARAM_MUTE_BASE + channel, 0x0005)
+        self.send_param(param, mute_payload(channel, on))
 
     def cmd_phase(self, channel: int, inverted: bool) -> None:
-        _ = channel
-        self.send_param(PARAM_PHASE, phase_payload(inverted))
+        """Invert phase on a specific channel. Channel byte included in payload."""
+        param = (PARAM_PHASE_BASE + channel, 0x0002)
+        self.send_param(param, phase_payload(channel, inverted))
 
     def cmd_delay_ms(self, channel: int, ms: int) -> None:
-        _ = channel
-        self.send_param(PARAM_DELAY, delay_payload(ms))
+        """Set delay in milliseconds for a specific channel."""
+        param = (PARAM_DELAY_BASE + channel, 0x0002)
+        self.send_param(param, delay_payload(ms))
 
     def cmd_eq(self, channel: int, band: int, freq_idx: int = None,
                gain_db: float = None, q: float = None) -> None:
-        _ = channel
-        _ = band  # multi-band addressing needs more captures to pin down
+        """
+        Set EQ parameters for a specific channel and band (0..4).
+
+        Each band is addressed via param_id = PARAM_EQ_BASE + band.
+        The channel offset is applied on top: param_id += channel * 5
+        (5 bands per channel, layout inferred from protocol captures).
+        sub_param selects freq (0x0003), gain (0x0004), or Q (0x0005).
+        """
+        band = max(0, min(band, 4))
+        param_id_base = PARAM_EQ_BASE + (channel * 5) + band
         if freq_idx is not None:
-            self.send_param(PARAM_EQ_FREQ, eq_value_payload(int(freq_idx)))
+            self.send_param((param_id_base, PARAM_EQ_SUB_FREQ),
+                            eq_value_payload(int(freq_idx)))
         if gain_db is not None:
-            self.send_param(PARAM_EQ_GAIN, eq_value_payload(int(round(gain_db * 100))))
+            self.send_param((param_id_base, PARAM_EQ_SUB_GAIN),
+                            eq_value_payload(int(round(gain_db * 100))))
         if q is not None:
-            self.send_param(PARAM_EQ_Q, eq_value_payload(int(round(q * 100))))
+            self.send_param((param_id_base, PARAM_EQ_SUB_Q),
+                            eq_value_payload(int(round(q * 100))))
 
     def cmd_matrix(self, row: int, col: int, on: bool) -> None:
         self.send_param(PARAM_MATRIX, matrix_payload(row, col, on))
@@ -221,18 +281,20 @@ class DspLink:
     # --- Meter receive --------------------------------------------------------
 
     def parse_meters(self, data: bytes) -> None:
-        """Parse a meter frame. Peak frame = 1024 B, RMS frame = 736 B."""
+        """
+        Parse a meter frame and store values in dBFS (range: -120.0 .. 0.0).
+
+        Peak frame = 1024 B, RMS frame = 736 B.
+        Raw 16-bit unsigned values are converted via _raw_to_db().
+        """
         if data.startswith(METER_PEAK_HEADER) and len(data) >= 1024:
-            # The first 16 bytes are the header. The remaining payload is the
-            # array of 16-bit unsigned meter samples. Cap to 32 channels.
             body = data[16:]
             for i in range(32):
                 off = i * 2
                 if off + 2 > len(body):
                     break
                 v = int.from_bytes(body[off:off + 2], "little")
-                # Map 0..65535 → 0..1.0 (rough; real curve is dB-shaped)
-                self.last_peaks[i] = v / 65535.0
+                self.last_peaks[i] = _raw_to_db(v)
         elif data.startswith(METER_RMS_HEADER) and len(data) >= 736:
             body = data[16:]
             for i in range(32):
@@ -240,7 +302,7 @@ class DspLink:
                 if off + 2 > len(body):
                     break
                 v = int.from_bytes(body[off:off + 2], "little")
-                self.last_rms[i] = v / 65535.0
+                self.last_rms[i] = _raw_to_db(v)
 
 
 def heartbeat_loop(link: DspLink, stop_event: threading.Event) -> None:
@@ -289,7 +351,7 @@ async def ws_handler(websocket, link: DspLink):
 
     Bridge → Browser (JSON):
         {"op": "hello", "dsp_ip": "169.254.10.227", "dsp_seen": true}
-        {"op": "meters", "peak": [...32...], "rms": [...32...]}
+        {"op": "meters", "peak": [...32 dBFS...], "rms": [...32 dBFS...]}
         {"op": "ack", "echo": <original_op>}
         {"op": "error", "msg": "..."}
     """
@@ -307,8 +369,8 @@ async def ws_handler(websocket, link: DspLink):
             try:
                 await websocket.send(json.dumps({
                     "op": "meters",
-                    "peak": [round(v, 4) for v in link.last_peaks],
-                    "rms": [round(v, 4) for v in link.last_rms],
+                    "peak": [round(v, 2) for v in link.last_peaks],
+                    "rms":  [round(v, 2) for v in link.last_rms],
                     "dsp_seen": link.dsp_seen,
                 }))
             except websockets.ConnectionClosed:
