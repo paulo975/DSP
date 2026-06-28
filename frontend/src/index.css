@@ -40,7 +40,7 @@ body {
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #0a0a0a;
+  background-color: #1e1e1e;
   color: #fff;
   overflow: hidden;
 }
@@ -50,7 +50,7 @@ code, .font-mono {
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-track { background: #1e1e1e; }
 ::-webkit-scrollbar-thumb { background: #2a2a2a; border: 1px solid #0a0a0a; }
 ::-webkit-scrollbar-thumb:hover { background: #ff6b00; }
 
