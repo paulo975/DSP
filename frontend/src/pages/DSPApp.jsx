@@ -317,7 +317,6 @@ const DSPShell = () => {
     <div className="dsp-shell" style={{ height: "100vh", display: "flex", flexDirection: "column", background: T.bg, color: T.text, overflow: "hidden" }} data-testid="dsp-shell">
 
       <TopBar tab={tab} setTab={setTab} onOpenPresets={() => setPresetsOpen(true)} onOpenPrint={() => setPrintOpen(true)} onOpenImport={() => setImportOpen(true)} />
-      <div style={{background:"#FF0000",color:"#fff",textAlign:"center",padding:"8px",fontFamily:"monospace",fontSize:14,fontWeight:"bold"}}>🔴 VERSÃO NOVA CARREGADA — {new Date().toLocaleTimeString()}</div>
       <ProactiveProfileHint />
 
       {readOnly && (
