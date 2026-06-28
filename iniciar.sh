@@ -1,12 +1,12 @@
 #!/bin/bash
 # ============================================================
 #  AudioSystem DSP Web — Arrancar a app
-#  Abre automaticamente no Google Chrome Beta
 # ============================================================
 
 BOLD="\033[1m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
+RED="\033[0;31m"
 CYAN="\033[0;36m"
 RESET="\033[0m"
 
@@ -14,44 +14,33 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo ""
 echo -e "${BOLD}▶ AudioSystem DSP Web${RESET}"
-echo -e "${CYAN}  http://localhost:3000${RESET}"
 echo ""
 
-# Verificar dependências
 if [ ! -d "$DIR/frontend/node_modules" ]; then
-  echo -e "${YELLOW}Dependências não instaladas. A correr instalador...${RESET}"
+  echo -e "${YELLOW}A instalar dependências...${RESET}"
   bash "$DIR/instalar.sh"
 fi
 
 cd "$DIR/frontend"
 
-# Detectar gestor de pacotes
-if command -v yarn &>/dev/null && [ -f "yarn.lock" ]; then
-  PKG_MGR="yarn"
-else
-  PKG_MGR="npm"
-fi
+# Matar qualquer processo que esteja a usar o porto 3000
+lsof -ti:3000 | xargs kill -9 2>/dev/null && echo -e "${YELLOW}Porto 3000 libertado.${RESET}" || true
 
-echo -e "${GREEN}A compilar... aguarda (pode demorar 1-2 min na primeira vez)${RESET}"
+echo -e "${GREEN}A iniciar servidor...${RESET}"
 echo ""
 
-# Aguardar que o porto 3000 esteja activo antes de abrir o browser
+# Abrir browser quando estiver pronto
 (
-  echo "A aguardar o servidor..."
-  for i in $(seq 1 60); do
+  for i in $(seq 1 90); do
     sleep 2
-    if curl -s http://localhost:3000 > /dev/null 2>&1; then
-      echo -e "${GREEN}Servidor pronto! A abrir o Chrome Beta...${RESET}"
+    if curl -s --max-time 1 http://localhost:3000 > /dev/null 2>&1; then
+      echo ""
+      echo -e "${GREEN}✓ Servidor pronto! A abrir Chrome Beta...${RESET}"
       open -a "Google Chrome Beta" "http://localhost:3000"
       break
     fi
-    echo "  ($((i*2))s) ainda a compilar..."
   done
 ) &
 
-# Iniciar o servidor
-if [ "$PKG_MGR" = "yarn" ]; then
-  yarn start
-else
-  npm start
-fi
+# Arrancar com output visível para diagnóstico
+BROWSER=none npm start 2>&1
