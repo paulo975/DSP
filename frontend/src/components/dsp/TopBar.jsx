@@ -11,7 +11,7 @@ import { buildShareUrl } from "@/lib/dspShareLink";
 import HardwareBridgeIndicator from "./HardwareBridgeIndicator";
 
 const T = {
-  bg: "#111111", border: "#282828", text: "#E8E8E8",
+  bg: "#1a1a1a", border: "#383838", text: "#E8E8E8",
   textDim: "#888", textMuted: "#444",
   orange: "#FF6B00", green: "#00FF41", red: "#FF3B30",
   yellow: "#FFD60A", violet: "#A855F7", cyan: "#22D3EE", pink: "#FF7AC6",

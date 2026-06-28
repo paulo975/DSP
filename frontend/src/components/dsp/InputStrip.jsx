@@ -1,18 +1,15 @@
-/**
- * InputStrip — input channel, Waves eMotion LV1 style.
- * Fundo #1A1A1A, bordas 0.5px, sem preto puro.
- */
 import React from "react";
 import { useDsp } from "@/lib/dspStore";
 import { audioEngine } from "@/lib/audioEngine";
 import { getCategory } from "@/lib/channelCategories";
 
 const T = {
-  surface:  "#1A1A1A",
-  border:   "#282828",
-  text:     "#E8E8E8",
-  textDim:  "#888888",
-  textMuted:"#444444",
+  surface:  "#252525",
+  surface2: "#2a2a2a",
+  border:   "#383838",
+  text:     "#e8e8e8",
+  textDim:  "#888",
+  textMuted:"#555",
   blue:     "#00B7FF",
   cyan:     "#22D3EE",
   green:    "#00FF41",
@@ -28,7 +25,6 @@ const findCand = (ch, all) => {
   return same[i + 1] || same[i - 1] || null;
 };
 
-// Meter rápido com DOM directo (sem re-renders React)
 const BusMeter = ({ inputId }) => {
   const fillRef = React.useRef(null);
   React.useEffect(() => {
@@ -48,13 +44,12 @@ const BusMeter = ({ inputId }) => {
     return () => cancelAnimationFrame(raf);
   }, [inputId]);
   return (
-    <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 6, background: "#0a0a0a", borderLeft: `0.5px solid ${T.border}`, overflow: "hidden" }}>
+    <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 6, background: "#111", borderLeft: `0.5px solid ${T.border}`, overflow: "hidden" }}>
       <div ref={fillRef} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "0%" }} />
     </div>
   );
 };
 
-// Curva audio-taper: 0dB fica a 75% do track
 const dbToPct = (db) => {
   const c = Math.max(-60, Math.min(12, db));
   return c >= 0 ? 0.75 + (c / 12) * 0.25 : 0.75 * ((c + 60) / 60);
@@ -82,7 +77,6 @@ const InputStrip = ({ input }) => {
     if (cand) linkChannels(input.id, cand.id);
   };
 
-  // Drag no track do fader
   const startDrag = (e) => {
     if (readOnly) return;
     dragging.current = true;
@@ -106,76 +100,86 @@ const InputStrip = ({ input }) => {
   };
 
   const thumbPct = dbToPct(input.gain);
-  const bdr = (col) => `0.5px solid ${col}`;
 
   return (
     <div
       style={{
         display: "flex", flexDirection: "column",
-        width: 60, flexShrink: 0,
+        width: 72, flexShrink: 0,
         background: T.surface,
-        borderRight: bdr(T.border),
+        borderRight: `0.5px solid ${T.border}`,
       }}
       data-testid={`input-strip-${input.id}`}
     >
-      {/* Scribble strip */}
-      <div style={{ height: 3, flexShrink: 0, background: accent }} />
+      {/* Scribble strip cor */}
+      <div style={{ height: 4, flexShrink: 0, background: accent }} />
 
-      {/* Header */}
-      <div style={{ padding: "4px 5px 3px", borderBottom: bdr(T.border), background: "#141414", flexShrink: 0 }}>
-        <div style={{ fontFamily: "monospace", fontSize: 7, fontWeight: "bold", color: accent, letterSpacing: "0.1em", marginBottom: 1 }}>
+      {/* Header — número + nome EDITÁVEL */}
+      <div style={{ padding: "4px 6px 3px", borderBottom: `0.5px solid ${T.border}`, background: T.surface2, flexShrink: 0 }}>
+        <div style={{ fontFamily: "monospace", fontSize: 8, fontWeight: "bold", color: accent, letterSpacing: "0.1em", marginBottom: 2 }}>
           {isVirt ? "DAN" : "IN"} {input.index + 1}
         </div>
-        <div style={{ fontFamily: "monospace", fontSize: 9, fontWeight: "bold", color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {input.name}
-        </div>
+        {/* Nome editável */}
+        <input
+          value={input.name}
+          onChange={(e) => updateInput(input.id, { name: e.target.value })}
+          maxLength={10}
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: "none",
+            outline: "none",
+            fontFamily: "monospace",
+            fontSize: 10,
+            fontWeight: "bold",
+            color: T.text,
+            padding: 0,
+            cursor: "text",
+          }}
+          data-testid={tid("name")}
+          title="Clica para editar o nome do canal"
+        />
       </div>
 
-      {/* Fader track + meter lateral */}
+      {/* Fader track */}
       <div
         ref={trackRef}
         onMouseDown={startDrag}
         style={{
-          flex: 1, margin: "6px 5px 4px",
-          background: "#0E0E0E",
-          border: bdr(T.border),
+          flex: 1, margin: "5px 6px 4px",
+          background: "#1a1a1a",
+          border: `0.5px solid ${T.border}`,
           position: "relative",
-          minHeight: 130,
+          minHeight: 120,
           cursor: "ns-resize",
           overflow: "hidden",
         }}
         data-testid={tid("fader-track")}
       >
         <BusMeter inputId={input.id} />
-
-        {/* 0dB reference line */}
+        {/* 0dB line */}
         <div style={{
           position: "absolute", left: 0, right: 8,
-          height: "0.5px", background: `${T.orange}50`,
+          height: "0.5px", background: `${T.orange}60`,
           bottom: `${dbToPct(0) * 100}%`,
           pointerEvents: "none",
         }} />
-
         {/* Thumb */}
-        <div
-          style={{
-            position: "absolute", left: 4, right: 10,
-            height: 18,
-            bottom: `calc(${thumbPct * 100}% - 9px)`,
-            transition: "bottom 30ms linear",
-          }}
-          data-testid={tid("thumb")}
-        >
+        <div style={{
+          position: "absolute", left: 3, right: 10,
+          height: 20,
+          bottom: `calc(${thumbPct * 100}% - 10px)`,
+          transition: "bottom 30ms linear",
+        }}>
           <div style={{
             position: "absolute", inset: 0,
-            background: "linear-gradient(to bottom, #3a3a3a, #c0c0c0, #e8e8e8, #c0c0c0, #303030)",
-            borderRadius: 1,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.8)",
+            background: "linear-gradient(to bottom, #3a3a3a, #c8c8c8, #f0f0f0, #c8c8c8, #2a2a2a)",
+            borderRadius: 2,
+            boxShadow: "0 2px 5px rgba(0,0,0,0.7)",
           }} />
-          {/* Linha central de posição */}
           <div style={{
             position: "absolute", top: "50%", left: 0, right: 0,
-            height: "0.5px", background: "rgba(255,255,255,0.7)",
+            height: "0.5px", background: "rgba(255,255,255,0.8)",
             pointerEvents: "none",
           }} />
         </div>
@@ -183,13 +187,11 @@ const InputStrip = ({ input }) => {
 
       {/* Gain readout */}
       <div style={{
-        fontFamily: "monospace", fontSize: 9, fontWeight: "bold",
-        textAlign: "center", marginBottom: 4, letterSpacing: "-0.01em",
+        fontFamily: "monospace", fontSize: 10, fontWeight: "bold",
+        textAlign: "center", marginBottom: 4,
         color: input.mute ? T.red : T.textDim,
         flexShrink: 0,
-      }}
-        data-testid={tid("gain-value")}
-      >
+      }} data-testid={tid("gain-value")}>
         {input.mute ? "M" : `${input.gain > 0 ? "+" : ""}${input.gain.toFixed(0)}`}
       </div>
 
@@ -199,16 +201,14 @@ const InputStrip = ({ input }) => {
           onClick={() => updateInput(input.id, { mute: !input.mute })}
           data-testid={tid("mute")}
           style={{
-            display: "block", width: "100%", padding: "4px 0",
-            fontFamily: "monospace", fontSize: 8, fontWeight: "bold", letterSpacing: "0.1em",
-            border: bdr(T.red),
+            display: "block", width: "100%", padding: "5px 0",
+            fontFamily: "monospace", fontSize: 9, fontWeight: "bold", letterSpacing: "0.1em",
+            border: `0.5px solid ${T.red}`,
             background: input.mute ? T.red : "transparent",
             color: input.mute ? "#000" : T.red,
             cursor: "pointer",
           }}
-        >
-          MUTE
-        </button>
+        >MUTE</button>
       </div>
 
       {/* SOLO */}
@@ -218,15 +218,13 @@ const InputStrip = ({ input }) => {
           data-testid={tid("solo")}
           style={{
             display: "block", width: "100%", padding: "3px 0",
-            fontFamily: "monospace", fontSize: 8, fontWeight: "bold", letterSpacing: "0.1em",
-            border: bdr(input.solo ? T.yellow : "#2a2a2a"),
+            fontFamily: "monospace", fontSize: 9, fontWeight: "bold",
+            border: `0.5px solid ${input.solo ? T.yellow : "#333"}`,
             background: input.solo ? T.yellow : "transparent",
-            color: input.solo ? "#000" : "#484848",
+            color: input.solo ? "#000" : "#555",
             cursor: "pointer",
           }}
-        >
-          SOLO
-        </button>
+        >SOLO</button>
       </div>
 
       {/* LINK */}
@@ -237,14 +235,12 @@ const InputStrip = ({ input }) => {
           style={{
             display: "block", width: "100%", padding: "3px 0",
             fontFamily: "monospace", fontSize: 8,
-            border: bdr(partner ? T.violet : "#262626"),
-            background: partner ? `${T.violet}12` : "transparent",
-            color: partner ? T.violet : "#303030",
+            border: `0.5px solid ${partner ? T.violet : "#2a2a2a"}`,
+            background: partner ? `${T.violet}18` : "transparent",
+            color: partner ? T.violet : "#333",
             cursor: "pointer",
           }}
-        >
-          🔗
-        </button>
+        >🔗</button>
       </div>
     </div>
   );

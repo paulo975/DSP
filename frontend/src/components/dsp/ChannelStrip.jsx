@@ -10,8 +10,8 @@ import Meter from "./Meter";
 
 const T = {
   bg:       "#141414",
-  surface:  "#1A1A1A",
-  border:   "#282828",
+  surface:  "#252525",
+  border:   "#383838",
   text:     "#E8E8E8",
   textDim:  "#888888",
   textMuted:"#444444",
