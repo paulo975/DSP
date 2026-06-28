@@ -16,17 +16,19 @@ echo ""
 echo -e "${BOLD}▶ AudioSystem DSP Web${RESET}"
 echo ""
 
-if [ ! -d "$DIR/frontend/node_modules" ]; then
-  echo -e "${YELLOW}A instalar dependências...${RESET}"
-  bash "$DIR/instalar.sh"
-fi
-
 cd "$DIR/frontend"
 
-# Matar qualquer processo que esteja a usar o porto 3000
-lsof -ti:3000 | xargs kill -9 2>/dev/null && echo -e "${YELLOW}Porto 3000 libertado.${RESET}" || true
+# Matar qualquer processo no porto 3000
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+
+# Garantir que os node_modules estão correctos
+echo -e "${YELLOW}A verificar dependências...${RESET}"
+npm install 2>&1 | tail -3
+echo -e "${GREEN}✓ Dependências OK${RESET}"
+echo ""
 
 echo -e "${GREEN}A iniciar servidor...${RESET}"
+echo -e "${CYAN}  Aguarda ~30 segundos na primeira vez${RESET}"
 echo ""
 
 # Abrir browser quando estiver pronto
@@ -35,12 +37,12 @@ echo ""
     sleep 2
     if curl -s --max-time 1 http://localhost:3000 > /dev/null 2>&1; then
       echo ""
-      echo -e "${GREEN}✓ Servidor pronto! A abrir Chrome Beta...${RESET}"
+      echo -e "${GREEN}✓ Pronto! A abrir Chrome Beta...${RESET}"
       open -a "Google Chrome Beta" "http://localhost:3000"
       break
     fi
   done
 ) &
 
-# Arrancar com output visível para diagnóstico
-BROWSER=none npm start 2>&1
+# Arrancar
+BROWSER=none npx craco start 2>&1
