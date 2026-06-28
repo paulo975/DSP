@@ -1,417 +1,243 @@
+/**
+ * ChannelStrip — output channel, Waves eMotion LV1 style.
+ * Fundo #1A1A1A, bordas 0.5px #282828, sem preto puro.
+ */
 import React from "react";
 import { useDsp } from "@/lib/dspStore";
 import { formatDelay } from "@/lib/dspDefaults";
 import { getCategory } from "@/lib/channelCategories";
-import Knob from "./Knob";
 import Meter from "./Meter";
 
-const Section = ({ title, children, accent = "#666" }) => (
-  <div className="border-t border-neutral-800">
-    <div
-      className="text-[9px] font-mono uppercase tracking-[0.2em] py-1 px-2 flex items-center justify-between"
-      style={{ color: accent, background: "#0c0c0c" }}
-    >
-      <span>{title}</span>
-    </div>
-    <div className="px-2 py-1.5">{children}</div>
-  </div>
-);
-
-const Btn = ({ active, color = "#FF6B00", textActive = "#000", onClick, children, testId, title, full }) => (
-  <button
-    onClick={onClick}
-    title={title}
-    data-testid={testId}
-    className={`text-[10px] font-mono font-bold uppercase tracking-[0.15em] py-1 border transition-all ${full ? "w-full" : "px-2"} hover:brightness-125`}
-    style={{
-      background: active ? color : "transparent",
-      color: active ? textActive : "#888",
-      borderColor: active ? color : "#2A2A2A",
-    }}
-  >
-    {children}
-  </button>
-);
+const T = {
+  bg:       "#141414",
+  surface:  "#1A1A1A",
+  border:   "#282828",
+  text:     "#E8E8E8",
+  textDim:  "#888888",
+  textMuted:"#444444",
+  orange:   "#FF6B00",
+  blue:     "#00B7FF",
+  green:    "#00FF41",
+  yellow:   "#FFD60A",
+  red:      "#FF3B30",
+  violet:   "#A855F7",
+  amber:    "#FF8533",
+};
 
 const ChannelStrip = ({ output, onOpenEq, onOpenComp, selected, onSelect }) => {
-  const { state, updateOutput, updateOutputDeep, resetChannel, linkChannels, unlinkChannels, readOnly } = useDsp();
+  const { state, updateOutput, updateOutputDeep, resetChannel,
+          linkChannels, unlinkChannels, readOnly } = useDsp();
 
-  const setField = (patch) => updateOutput(output.id, patch);
-  const setDeep = (path, value) => {
-    updateOutputDeep(output.id, (o) => {
-      const next = JSON.parse(JSON.stringify(o));
-      let cur = next;
-      const segs = path.split(".");
-      for (let i = 0; i < segs.length - 1; i++) cur = cur[segs[i]];
-      cur[segs[segs.length - 1]] = value;
-      return next;
-    });
-  };
+  const set   = (patch) => updateOutput(output.id, patch);
+  const deep  = (path, val) => updateOutputDeep(output.id, (o) => {
+    const n = JSON.parse(JSON.stringify(o));
+    const segs = path.split(".");
+    let cur = n;
+    for (let i = 0; i < segs.length - 1; i++) cur = cur[segs[i]];
+    cur[segs[segs.length - 1]] = val;
+    return n;
+  });
 
-  // Stereo-link partner (output of same kind). Quick-link uses adjacent index.
   const partner = output.linkedTo ? state.outputs.find((o) => o.id === output.linkedTo) : null;
-  const findOutputLinkCandidate = () => {
-    const sameKind = state.outputs.filter((c) => c.kind === output.kind);
-    const i = sameKind.findIndex((c) => c.id === output.id);
-    if (i < 0) return null;
-    return sameKind[i + 1] || sameKind[i - 1] || null;
+  const findCand = () => {
+    const same = state.outputs.filter((c) => c.kind === output.kind);
+    const i = same.findIndex((c) => c.id === output.id);
+    return same[i + 1] || same[i - 1] || null;
   };
   const handleLink = () => {
     if (readOnly) return;
-    if (output.linkedTo) {
-      unlinkChannels(output.id);
-      return;
-    }
-    const cand = findOutputLinkCandidate();
+    if (output.linkedTo) { unlinkChannels(output.id); return; }
+    const cand = findCand();
     if (cand) linkChannels(output.id, cand.id);
   };
 
-  const isVirtual = output.kind === "out_virt";
-  const tid = (s) => `out-${output.kind}-${output.index}-${s}`;
-  const accentTone = isVirtual ? "#FF8533" : "#FF6B00";
+  const isVirt  = output.kind === "out_virt";
+  const tid     = (s) => `out-${output.kind}-${output.index}-${s}`;
+  const cat     = getCategory(output.category);
+  const accent  = isVirt ? T.amber : T.orange;
+  const chAccent = cat.id !== "none" ? cat.color : accent;
+
+  const eqActive  = output.eq?.enabled && output.eq?.bands?.some((b) => b.gain !== 0);
+  const dynActive = output.comp?.enabled || output.limiter?.enabled;
+  const dlyActive = (output.delay?.value || 0) > 0;
+  const hpfOn     = output.crossover?.hpf?.enabled;
+  const lpfOn     = output.crossover?.lpf?.enabled;
+
+  const bdr = (color, alpha = 1) => `0.5px solid ${color}${alpha < 1 ? Math.round(alpha * 255).toString(16).padStart(2, "0") : ""}`;
 
   return (
     <div
-      className="flex flex-col w-36 shrink-0 border-r bg-[#0F0F0F] transition-colors"
-      style={{ borderRightColor: selected ? "#00B7FF" : "#262626", boxShadow: selected ? "inset 0 2px 0 0 #00B7FF" : "none" }}
+      style={{
+        display: "flex", flexDirection: "column",
+        width: 72, flexShrink: 0,
+        background: selected ? "#0C1620" : T.surface,
+        borderRight: `0.5px solid ${selected ? T.blue + "55" : T.border}`,
+        boxShadow: selected ? `inset 0 0 0 1px ${T.blue}22` : "none",
+        transition: "background 120ms",
+      }}
       data-testid={`channel-strip-${output.id}`}
     >
-      {/* ----- Scribble strip — colour-coded category tag (Waves eMotion LV1 style) ----- */}
-      {(() => {
-        const cat = getCategory(output.category);
-        if (cat.id === "none") return null;
-        return (
-          <div
-            className="h-3 flex items-center justify-center text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-black"
-            style={{ background: cat.color }}
-            data-testid={tid("category-tag")}
-            title={`Category: ${cat.name}`}
-          >
-            {cat.name}
-          </div>
-        );
-      })()}
+      {/* ── Scribble strip de cor ── */}
+      <div style={{ height: 3, flexShrink: 0, background: chAccent }} />
 
-      {/* ----- Header (clickable to select) ----- */}
+      {/* ── Header ── */}
       <div
         onClick={() => onSelect?.(output.id)}
-        className="px-2 pt-1.5 pb-2 border-b-2 cursor-pointer hover:bg-black/40"
         style={{
-          background: selected ? "#001a2a" : isVirtual ? "#1a1208" : "#141414",
-          borderBottomColor: selected ? "#00B7FF" : accentTone,
+          padding: "5px 6px 4px",
+          borderBottom: `0.5px solid ${selected ? T.blue + "55" : T.border}`,
+          background: selected ? "#081018" : "#141414",
+          cursor: "pointer",
         }}
+        data-testid={tid("header")}
       >
-        {/* Description / purpose — free-text annotation for the channel role */}
+        <div style={{ fontFamily: "monospace", fontSize: 7, fontWeight: "bold", color: chAccent, letterSpacing: "0.12em", marginBottom: 2 }}>
+          {isVirt ? "DAN" : "PHY"} {output.index + 1}
+        </div>
         <input
-          value={output.description || ""}
-          onChange={(e) => setField({ description: e.target.value })}
+          value={output.name}
+          onChange={(e) => set({ name: e.target.value })}
           onClick={(e) => e.stopPropagation()}
-          placeholder="Purpose…"
-          maxLength={32}
-          className="w-full bg-black/60 border border-neutral-800 text-[10px] font-mono text-[#00B7FF] placeholder:text-neutral-700 px-1 py-0.5 outline-none focus:border-[#00B7FF] mb-1"
-          data-testid={tid("description")}
-          title="Describe what this channel is used for (e.g. 'Lead Vocal', 'Sub L')"
+          maxLength={8}
+          style={{
+            background: "transparent", border: "none", outline: "none",
+            fontFamily: "monospace", fontSize: 11, fontWeight: "bold",
+            color: selected ? T.blue : T.text,
+            width: "100%", letterSpacing: "-0.01em",
+          }}
+          data-testid={tid("name")}
         />
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col grow min-w-0">
-            <span
-              className="text-[8px] font-mono uppercase tracking-[0.2em] truncate"
-              style={{ color: selected ? "#00B7FF" : accentTone }}
-            >
-              {selected ? "▸ SELECTED" : isVirtual ? "DANTE VIRT" : "PHYSICAL"}
-            </span>
+      </div>
+
+      {/* ── Meter + Fader ── */}
+      <div style={{ display: "flex", gap: 4, padding: "6px 6px 2px", flex: 1 }}>
+        {/* Meter vertical */}
+        <Meter
+          outputId={output.id} source="out" orient="v"
+          height={190} width={10} segments={26}
+          testId={tid("meter")}
+        />
+
+        {/* Fader */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
+          {/* dB readout */}
+          <div
+            style={{
+              fontFamily: "monospace", fontSize: 10, fontWeight: "bold",
+              color: output.mute ? T.red : T.text,
+              textAlign: "center", marginBottom: 4, letterSpacing: "-0.01em",
+              width: "100%",
+            }}
+            data-testid={tid("gain-value")}
+          >
+            {output.mute ? "M" : output.gain.toFixed(1)}
+          </div>
+
+          {/* Slider vertical */}
+          <div style={{ flex: 1, display: "flex", alignItems: "stretch", justifyContent: "center", width: "100%" }}>
             <input
-              value={output.name}
-              onChange={(e) => setField({ name: e.target.value })}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-transparent text-sm font-mono font-bold text-white w-full outline-none focus:bg-black/40 px-0.5 -mx-0.5 rounded-sm"
-              data-testid={tid("name")}
+              type="range" min={-60} max={12} step={0.1}
+              value={output.gain}
+              onChange={(e) => set({ gain: Number(e.target.value) })}
+              className="vertical-fader"
+              style={{
+                writingMode: "vertical-lr", direction: "rtl",
+                height: "100%", minHeight: 120, width: 22,
+                background: "transparent", cursor: "pointer",
+                opacity: output.mute ? 0.35 : 1,
+              }}
+              data-testid={tid("fader")}
             />
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); resetChannel(output.id); }}
-            title="Reset channel"
-            data-testid={tid("reset")}
-            className="text-xs font-mono text-neutral-500 hover:text-white shrink-0 px-1.5"
-          >
-            ↺
-          </button>
         </div>
       </div>
 
-      {/* ----- Input meter (pre-DSP, post-routing) ----- */}
-      <div className="flex items-center gap-2 px-2 py-1.5 bg-black/40 border-b border-neutral-800">
-        <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-neutral-500 w-4">IN</span>
-        <Meter
-          outputId={output.id}
-          source="in"
-          orient="h"
-          width={104}
-          height={8}
-          segments={20}
-          testId={tid("input-meter")}
-        />
-      </div>
-
-      {/* ----- Mute / Solo ----- */}
-      <div className="grid grid-cols-2 gap-1 px-2 pt-2">
-        <Btn active={output.mute} color="#FF3B30" onClick={() => setField({ mute: !output.mute })} testId={tid("mute")} full>
+      {/* ── MUTE ── */}
+      <div style={{ padding: "4px 6px 2px" }}>
+        <button
+          onClick={() => set({ mute: !output.mute })}
+          data-testid={tid("mute")}
+          style={{
+            display: "block", width: "100%", padding: "5px 0",
+            fontFamily: "monospace", fontSize: 9, fontWeight: "bold", letterSpacing: "0.12em",
+            border: bdr(T.red),
+            background: output.mute ? T.red : "transparent",
+            color: output.mute ? "#000" : T.red,
+            cursor: "pointer",
+            boxShadow: output.mute ? `0 0 8px ${T.red}55` : "none",
+          }}
+        >
           MUTE
-        </Btn>
-        <Btn active={output.solo} color="#FFD60A" onClick={() => setField({ solo: !output.solo })} testId={tid("solo")} full>
+        </button>
+      </div>
+
+      {/* ── SOLO ── */}
+      <div style={{ padding: "2px 6px 4px" }}>
+        <button
+          onClick={() => set({ solo: !output.solo })}
+          data-testid={tid("solo")}
+          style={{
+            display: "block", width: "100%", padding: "4px 0",
+            fontFamily: "monospace", fontSize: 9, fontWeight: "bold", letterSpacing: "0.12em",
+            border: bdr(output.solo ? T.yellow : "#303030"),
+            background: output.solo ? T.yellow : "transparent",
+            color: output.solo ? "#000" : "#555",
+            cursor: "pointer",
+          }}
+        >
           SOLO
-        </Btn>
-      </div>
-
-      {/* ----- Stereo Link — mirrors gain/mute/solo with paired output ----- */}
-      <div className="px-2 pt-1">
-        <Btn
-          active={!!partner}
-          color="#A855F7"
-          onClick={handleLink}
-          testId={tid("link")}
-          title={partner ? `Linked to ${partner.name} (${partner.index + 1}) — click to unlink` : "Stereo-link with next output (gain/mute/solo mirrored)"}
-          full
-        >
-          🔗 {partner ? `LINK ${partner.index + 1}` : "LINK"}
-        </Btn>
-      </div>
-
-      {/* ----- Test signal (pink/white/sweep) per-channel toggle ----- */}
-      <div className="px-2 pt-1">
-        <Btn
-          active={output.pinkNoise?.enabled}
-          color="#FF7AC6"
-          onClick={() => setDeep("pinkNoise.enabled", !output.pinkNoise?.enabled)}
-          testId={tid("pink-noise")}
-          full
-        >
-          {output.pinkNoise?.enabled
-            ? `▮▮ ${(output.pinkNoise?.type || "pink").toUpperCase()} ${output.pinkNoise.level.toFixed(0)}`
-            : `▮ ${(output.pinkNoise?.type || "pink").toUpperCase()} OFF`}
-        </Btn>
-      </div>
-
-      {/* ----- Crossover ----- */}
-      <Section title="Crossover" accent={accentTone}>
-        <div className="flex justify-around mb-2">
-          <Knob
-            label="HPF"
-            value={output.crossover.hpf.freq}
-            min={20}
-            max={2000}
-            step={1}
-            unit="Hz"
-            format={(v) => Math.round(v)}
-            onChange={(v) => setDeep("crossover.hpf.freq", v)}
-            testId={tid("hpf-freq")}
-            accent={output.crossover.hpf.enabled ? "#FF6B00" : "#555"}
-            size={44}
-          />
-          <Knob
-            label="LPF"
-            value={output.crossover.lpf.freq}
-            min={500}
-            max={20000}
-            step={10}
-            unit="Hz"
-            format={(v) => Math.round(v)}
-            onChange={(v) => setDeep("crossover.lpf.freq", v)}
-            testId={tid("lpf-freq")}
-            accent={output.crossover.lpf.enabled ? "#FF6B00" : "#555"}
-            size={44}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-1">
-          <Btn
-            active={output.crossover.hpf.enabled}
-            onClick={() => setDeep("crossover.hpf.enabled", !output.crossover.hpf.enabled)}
-            testId={tid("hpf-en")}
-            full
-          >
-            HPF
-          </Btn>
-          <Btn
-            active={output.crossover.lpf.enabled}
-            onClick={() => setDeep("crossover.lpf.enabled", !output.crossover.lpf.enabled)}
-            testId={tid("lpf-en")}
-            full
-          >
-            LPF
-          </Btn>
-        </div>
-      </Section>
-
-      {/* ----- EQ / Dynamics ----- */}
-      <Section title="Processing" accent={accentTone}>
-        <button
-          onClick={() => onOpenEq(output.id)}
-          data-testid={tid("open-eq")}
-          className="w-full px-2 py-1.5 border text-[10px] font-mono font-bold uppercase tracking-[0.15em] mb-1 transition-colors"
-          style={{
-            borderColor: output.eq.enabled ? "#FF6B00" : "#2A2A2A",
-            color: output.eq.enabled ? "#FF6B00" : "#888",
-          }}
-        >
-          EQ · 5 BANDS
         </button>
-        <button
-          onClick={() => onOpenComp(output.id)}
-          data-testid={tid("open-comp")}
-          className="w-full px-2 py-1.5 border text-[10px] font-mono font-bold uppercase tracking-[0.15em] transition-colors"
+      </div>
+
+      {/* ── Badges EQ / DYN / DLY ── */}
+      <div style={{ padding: "0 6px 4px", display: "flex", flexWrap: "wrap", gap: 2 }}>
+        <button onClick={() => onOpenEq(output.id)} data-testid={tid("open-eq")}
           style={{
-            borderColor: output.comp.enabled || output.limiter.enabled ? "#FF6B00" : "#2A2A2A",
-            color: output.comp.enabled || output.limiter.enabled ? "#FF6B00" : "#888",
-          }}
-        >
-          {output.comp.enabled && output.limiter.enabled
-            ? "COMP · LIM"
-            : output.comp.enabled
-              ? "COMP ON"
-              : output.limiter.enabled
-                ? "LIM ON"
-                : "DYNAMICS"}
-        </button>
-      </Section>
+            fontFamily: "monospace", fontSize: 7, fontWeight: "bold",
+            padding: "2px 3px", border: bdr(eqActive ? T.orange : "#2a2a2a"),
+            background: eqActive ? `${T.orange}15` : "transparent",
+            color: eqActive ? T.orange : "#444", cursor: "pointer",
+          }}>EQ</button>
+        <button onClick={() => onOpenComp(output.id)} data-testid={tid("open-comp")}
+          style={{
+            fontFamily: "monospace", fontSize: 7, fontWeight: "bold",
+            padding: "2px 3px", border: bdr(dynActive ? T.orange : "#2a2a2a"),
+            background: dynActive ? `${T.orange}15` : "transparent",
+            color: dynActive ? T.orange : "#444", cursor: "pointer",
+          }}>DYN</button>
+        <div title={formatDelay(output.delay)}
+          style={{
+            fontFamily: "monospace", fontSize: 7,
+            padding: "2px 3px", border: bdr(dlyActive ? T.blue : "#2a2a2a"),
+            background: dlyActive ? `${T.blue}12` : "transparent",
+            color: dlyActive ? T.blue : "#444",
+          }}>DLY</div>
+        {(hpfOn || lpfOn) && (
+          <div style={{ fontFamily: "monospace", fontSize: 7, padding: "2px 3px", border: bdr(T.violet), background: `${T.violet}10`, color: T.violet }}>
+            {hpfOn && lpfOn ? "XOV" : hpfOn ? "HPF" : "LPF"}
+          </div>
+        )}
+      </div>
 
-      {/* ----- Delay (the CRITICAL feature) ----- */}
-      <Section title="Delay" accent={accentTone}>
-        <div className="flex items-center gap-1">
-          <input
-            type="number"
-            step="0.1"
-            value={output.delay.value}
-            onChange={(e) => setDeep("delay.value", Number(e.target.value))}
-            className="grow min-w-0 bg-black border border-neutral-800 text-sm font-mono font-bold text-white px-1.5 py-1 outline-none focus:border-[#FF6B00]"
-            data-testid={tid("delay-value")}
-          />
-          <select
-            value={output.delay.unit}
-            onChange={(e) => setDeep("delay.unit", e.target.value)}
-            className="bg-black border border-neutral-800 text-[10px] font-mono text-white px-1 py-1 outline-none focus:border-[#FF6B00]"
-            data-testid={tid("delay-unit")}
-          >
-            <option value="ms">ms</option>
-            <option value="mm">mm</option>
-            <option value="inch">in</option>
-          </select>
-        </div>
-        <div className="text-[10px] font-mono text-neutral-500 text-right mt-1" data-testid={tid("delay-ms")}>
-          ≈ {formatDelay(output.delay)}
-        </div>
-      </Section>
-
-      {/* ----- Pan (analog-style L/R balance meter) ----- */}
-      <Section title="Pan" accent={accentTone}>
-        {(() => {
-          // Equal-power pan visual — same math the audio engine uses.
-          const pNorm = (output.pan + 100) / 200; // 0..1
-          const angle = pNorm * (Math.PI / 2);
-          const lGain = Math.cos(angle);
-          const rGain = Math.sin(angle);
-          const lPct = lGain * 50; // 0..50% (half-width)
-          const rPct = rGain * 50;
-          return (
-            <div
-              className="relative h-6 bg-black border border-neutral-800 mb-1 overflow-hidden cursor-pointer select-none"
-              onDoubleClick={() => setField({ pan: 0 })}
-              title="Double-click to recenter"
-              data-testid={tid("pan-visual")}
-            >
-              {/* L gain bar (grows leftward from center) */}
-              <div
-                className="absolute top-0 bottom-0 transition-[width] duration-75"
-                style={{
-                  right: "50%",
-                  width: `${lPct}%`,
-                  background: `linear-gradient(to left, ${output.pan <= 0 ? "#FF6B00" : "#6B3000"}, ${output.pan <= 0 ? "#7a3300" : "#2a1300"})`,
-                  opacity: 0.85,
-                }}
-              />
-              {/* R gain bar (grows rightward from center) */}
-              <div
-                className="absolute top-0 bottom-0 transition-[width] duration-75"
-                style={{
-                  left: "50%",
-                  width: `${rPct}%`,
-                  background: `linear-gradient(to right, ${output.pan >= 0 ? "#FF6B00" : "#6B3000"}, ${output.pan >= 0 ? "#7a3300" : "#2a1300"})`,
-                  opacity: 0.85,
-                }}
-              />
-              {/* Center tick */}
-              <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/40" />
-              {/* Position cursor (head) */}
-              <div
-                className="absolute top-0 bottom-0 w-[2px] transition-[left] duration-75"
-                style={{
-                  left: `${pNorm * 100}%`,
-                  background: "#FFFFFF",
-                  boxShadow: "0 0 6px #FFFFFF, 0 0 14px #FF6B00",
-                  transform: "translateX(-50%)",
-                }}
-              />
-              {/* Side labels */}
-              <span className="absolute top-0 left-1 text-[8px] font-mono font-bold text-neutral-600 leading-none pt-[2px] pointer-events-none">L</span>
-              <span className="absolute top-0 right-1 text-[8px] font-mono font-bold text-neutral-600 leading-none pt-[2px] pointer-events-none">R</span>
-            </div>
-          );
-        })()}
-        <input
-          type="range"
-          min={-100}
-          max={100}
-          step={1}
-          value={output.pan}
-          onDoubleClick={() => setField({ pan: 0 })}
-          onChange={(e) => setField({ pan: Number(e.target.value) })}
-          className="w-full accent-[#FF6B00]"
-          data-testid={tid("pan")}
-          title="Double-click slider or bar to recenter"
-        />
-        <div className="flex justify-between text-[9px] font-mono mt-0.5">
-          <span className="text-neutral-600">L</span>
-          <span className="text-white font-bold" data-testid={tid("pan-value")}>
-            {output.pan === 0 ? "C" : output.pan > 0 ? `R${output.pan}` : `L${Math.abs(output.pan)}`}
-          </span>
-          <span className="text-neutral-600">R</span>
-        </div>
-      </Section>
-
-      {/* ----- Fader + Output Meter ----- */}
-      <div className="border-t border-neutral-800 px-2 pt-1.5 pb-2 grow flex flex-col">
-        <div className="text-[9px] font-mono uppercase tracking-[0.2em] py-1 flex items-center justify-between" style={{ color: accentTone }}>
-          <span>OUT</span>
-          <span className="text-white font-bold" data-testid={tid("gain-value")}>
-            {output.gain.toFixed(1)} dB
-          </span>
-        </div>
-        <div className="flex justify-center items-stretch gap-2 grow">
-          <input
-            type="range"
-            min={-60}
-            max={12}
-            step={0.1}
-            value={output.gain}
-            onChange={(e) => setField({ gain: Number(e.target.value) })}
-            className="appearance-none bg-transparent accent-[#FF6B00] cursor-pointer vertical-fader"
-            style={{
-              writingMode: "vertical-lr",
-              direction: "rtl",
-              height: 140,
-              width: 22,
-            }}
-            data-testid={tid("fader")}
-          />
-          <Meter
-            outputId={output.id}
-            source="out"
-            orient="v"
-            height={140}
-            width={16}
-            segments={20}
-            testId={tid("meter")}
-          />
-        </div>
+      {/* ── LINK + RESET ── */}
+      <div style={{ padding: "0 6px 6px", display: "flex", gap: 3 }}>
+        <button onClick={handleLink} data-testid={tid("link")}
+          title={partner ? `Linked to ${partner.name} — click to unlink` : "Stereo-link with adjacent channel"}
+          style={{
+            flex: 1, padding: "3px 0",
+            fontFamily: "monospace", fontSize: 8,
+            border: bdr(partner ? T.violet : "#262626"),
+            background: partner ? `${T.violet}12` : "transparent",
+            color: partner ? T.violet : "#383838", cursor: "pointer",
+          }}>🔗</button>
+        <button onClick={() => resetChannel(output.id)} data-testid={tid("reset")}
+          title="Reset channel"
+          style={{
+            padding: "3px 5px",
+            fontFamily: "monospace", fontSize: 9,
+            border: bdr("#262626"), background: "transparent",
+            color: "#383838", cursor: "pointer",
+          }}>↺</button>
       </div>
     </div>
   );

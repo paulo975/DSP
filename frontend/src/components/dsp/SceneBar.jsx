@@ -86,11 +86,11 @@ const SceneBar = () => {
 
   return (
     <div
-      className="border-b border-neutral-900 bg-[#0c0c0c] flex items-stretch h-12 select-none"
+      className="border-b border-[#282828] bg-[#111111] flex items-stretch h-12 select-none"
       data-testid="scene-bar"
     >
-      <div className="px-3 flex items-center border-r border-neutral-900">
-        <span className="text-[10px] font-mono uppercase tracking-[0.22em] text-neutral-500">
+      <div className="px-3 flex items-center border-r border-[#282828]">
+        <span className="text-[10px] font-mono uppercase tracking-[0.22em] text-[#555]">
           Scenes
         </span>
       </div>
@@ -115,7 +115,7 @@ const SceneBar = () => {
               onClick={() => handleCapture(idx)}
               disabled={readOnly}
               data-testid={`scene-slot-empty-${idx}`}
-              className="relative flex-1 min-w-[80px] border-r border-neutral-900 text-[10px] font-mono uppercase tracking-[0.18em] text-neutral-600 hover:bg-[#141414] hover:text-neutral-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="relative flex-1 min-w-[80px] border-r border-[#282828] text-[10px] font-mono uppercase tracking-[0.18em] text-[#555] hover:bg-[#1a1a1a] hover:text-[#aaa] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               + Capture
               {hotkeyBadge("#444")}
@@ -129,7 +129,7 @@ const SceneBar = () => {
         return (
           <div
             key={scene.id}
-            className="relative flex-1 min-w-[100px] border-r border-neutral-900 group"
+            className="relative flex-1 min-w-[100px] border-r border-[#282828] group"
             data-testid={`scene-slot-${scene.id}`}
           >
             {editingId === scene.id ? (
@@ -170,7 +170,7 @@ const SceneBar = () => {
 
             {menuFor === scene.id && (
               <div
-                className="absolute right-0 top-full mt-1 z-30 bg-[#101010] border border-neutral-700 shadow-lg w-32"
+                className="absolute right-0 top-full mt-1 z-30 bg-[#161616] border border-[#2e2e2e] shadow-lg w-32"
                 data-testid={`scene-menu-${scene.id}`}
                 onMouseLeave={() => setMenuFor(null)}
               >
@@ -178,7 +178,7 @@ const SceneBar = () => {
                   onClick={() => { overwriteScene(scene.id); setMenuFor(null); }}
                   disabled={readOnly}
                   data-testid={`scene-overwrite-${scene.id}`}
-                  className="w-full px-3 py-1.5 text-left text-[10px] font-mono uppercase tracking-[0.15em] text-neutral-300 hover:bg-[#1f1f1f] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-1.5 text-left text-[10px] font-mono uppercase tracking-[0.15em] text-[#aaa] hover:bg-[#1e1e1e] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   ⊕ Overwrite
                 </button>
@@ -186,7 +186,7 @@ const SceneBar = () => {
                   onClick={() => startRename(scene)}
                   disabled={readOnly}
                   data-testid={`scene-rename-${scene.id}`}
-                  className="w-full px-3 py-1.5 text-left text-[10px] font-mono uppercase tracking-[0.15em] text-neutral-300 hover:bg-[#1f1f1f] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-1.5 text-left text-[10px] font-mono uppercase tracking-[0.15em] text-[#aaa] hover:bg-[#1e1e1e] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   ✎ Rename
                 </button>
@@ -194,7 +194,7 @@ const SceneBar = () => {
                   onClick={() => { deleteScene(scene.id); setMenuFor(null); }}
                   disabled={readOnly}
                   data-testid={`scene-delete-${scene.id}`}
-                  className="w-full px-3 py-1.5 text-left text-[10px] font-mono uppercase tracking-[0.15em] text-[#FF3B30] hover:bg-[#1f1f1f] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-1.5 text-left text-[10px] font-mono uppercase tracking-[0.15em] text-[#FF3B30] hover:bg-[#1e1e1e] disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   🗑 Delete
                 </button>
@@ -204,7 +204,7 @@ const SceneBar = () => {
         );
       })}
 
-      <div className="px-3 flex items-center text-[9px] font-mono uppercase tracking-[0.18em] text-neutral-600">
+      <div className="px-3 flex items-center text-[9px] font-mono uppercase tracking-[0.18em] text-[#555]">
         keys 1-8 · right-click for menu
       </div>
     </div>
