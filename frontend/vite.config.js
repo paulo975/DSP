@@ -7,9 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [
-    react({
-      include: ['**/*.jsx', '**/*.js'],
-    }),
+    react(),
   ],
   resolve: {
     alias: {
@@ -23,11 +21,10 @@ export default defineConfig({
   },
   optimizeDeps: {
     esbuildOptions: {
-      loader: { '.js': 'jsx' },
+      loader: {
+        '.js': 'jsx',
+        '.jsx': 'jsx',
+      },
     },
-  },
-  esbuild: {
-    loader: 'jsx',
-    include: /src\/.*\.js$/,
   },
 })
