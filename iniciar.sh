@@ -4,7 +4,6 @@
 #  Abre automaticamente no Google Chrome Beta
 # ============================================================
 
-set -e
 BOLD="\033[1m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -18,7 +17,7 @@ echo -e "${BOLD}▶ AudioSystem DSP Web${RESET}"
 echo -e "${CYAN}  http://localhost:3000${RESET}"
 echo ""
 
-# Verificar se as dependências estão instaladas
+# Verificar dependências
 if [ ! -d "$DIR/frontend/node_modules" ]; then
   echo -e "${YELLOW}Dependências não instaladas. A correr instalador...${RESET}"
   bash "$DIR/instalar.sh"
@@ -33,13 +32,24 @@ else
   PKG_MGR="npm"
 fi
 
-echo -e "${GREEN}A iniciar...  (Ctrl+C para parar)${RESET}"
+echo -e "${GREEN}A compilar... aguarda (pode demorar 1-2 min na primeira vez)${RESET}"
 echo ""
 
-# Abrir no Google Chrome Beta após 4 segundos
-(sleep 4 && open -a "Google Chrome Beta" "http://localhost:3000") &
+# Aguardar que o porto 3000 esteja activo antes de abrir o browser
+(
+  echo "A aguardar o servidor..."
+  for i in $(seq 1 60); do
+    sleep 2
+    if curl -s http://localhost:3000 > /dev/null 2>&1; then
+      echo -e "${GREEN}Servidor pronto! A abrir o Chrome Beta...${RESET}"
+      open -a "Google Chrome Beta" "http://localhost:3000"
+      break
+    fi
+    echo "  ($((i*2))s) ainda a compilar..."
+  done
+) &
 
-# Iniciar o servidor de desenvolvimento
+# Iniciar o servidor
 if [ "$PKG_MGR" = "yarn" ]; then
   yarn start
 else
