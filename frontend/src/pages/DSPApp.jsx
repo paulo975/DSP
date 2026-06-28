@@ -1,3 +1,4 @@
+import { VERSIONS } from "@/lib/dspDefaults";
 /**
  * DSPApp — Waves eMotion LV1 layout.
  *
@@ -210,7 +211,7 @@ const MasterSidebar = ({ tab, setTab }) => {
 const VersionButtons = () => {
   const { state, setVersion, readOnly } = useDsp();
   const [confirm, setConfirm] = useState(null);
-  const { VERSIONS } = require("@/lib/dspDefaults");
+
 
   return (
     <>
