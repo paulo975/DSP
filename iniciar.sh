@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 #  AudioSystem DSP Web — Arrancar a app
-#  Abre o browser automaticamente em http://localhost:3000
+#  Abre automaticamente no Google Chrome Beta
 # ============================================================
 
 set -e
@@ -36,8 +36,8 @@ fi
 echo -e "${GREEN}A iniciar...  (Ctrl+C para parar)${RESET}"
 echo ""
 
-# Abrir o browser após 4 segundos
-(sleep 4 && open "http://localhost:3000") &
+# Abrir no Google Chrome Beta após 4 segundos
+(sleep 4 && open -a "Google Chrome Beta" "http://localhost:3000") &
 
 # Iniciar o servidor de desenvolvimento
 if [ "$PKG_MGR" = "yarn" ]; then
