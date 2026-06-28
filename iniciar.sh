@@ -20,27 +20,26 @@ cd "$DIR/frontend"
 # Matar qualquer processo no porto 3000
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 
-# Instalar dependências com --legacy-peer-deps para resolver conflitos
-echo -e "${YELLOW}A instalar dependências...${RESET}"
-npm install --legacy-peer-deps 2>&1 | tail -3
+# Limpar node_modules antigos se existirem do CRA
+if [ -f "node_modules/.package-lock.json" ] || [ -f "node_modules/.yarn-integrity" ]; then
+  echo -e "${YELLOW}A limpar instalação anterior...${RESET}"
+  rm -rf node_modules package-lock.json yarn.lock
+fi
+
+# Instalar dependências
+echo -e "${YELLOW}A instalar dependências (1-2 min na primeira vez)...${RESET}"
+npm install 2>&1 | tail -3
 echo -e "${GREEN}✓ Dependências OK${RESET}"
 echo ""
 
-# Verificar se o craco existe
-CRACO="$DIR/frontend/node_modules/.bin/craco"
-if [ ! -f "$CRACO" ]; then
-  echo -e "${YELLOW}A instalar craco...${RESET}"
-  npm install --save-dev @craco/craco --legacy-peer-deps 2>&1 | tail -3
-fi
-
-echo -e "${GREEN}A iniciar servidor...${RESET}"
-echo -e "${CYAN}  Aguarda ~30-60 segundos na primeira compilação${RESET}"
+echo -e "${GREEN}A iniciar servidor Vite...${RESET}"
+echo -e "${CYAN}  Aguarda alguns segundos...${RESET}"
 echo ""
 
-# Abrir browser quando estiver pronto
+# Abrir Chrome Beta quando estiver pronto
 (
-  for i in $(seq 1 90); do
-    sleep 3
+  for i in $(seq 1 60); do
+    sleep 2
     if curl -s --max-time 1 http://localhost:3000 > /dev/null 2>&1; then
       echo ""
       echo -e "${GREEN}✓ Pronto! A abrir Chrome Beta...${RESET}"
@@ -50,5 +49,5 @@ echo ""
   done
 ) &
 
-# Arrancar com o craco local
-BROWSER=none "$CRACO" start 2>&1
+# Arrancar Vite
+npm start 2>&1
