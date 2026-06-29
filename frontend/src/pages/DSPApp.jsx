@@ -505,3 +505,12 @@ const DSPApp = () => (
 );
 
 export default DSPApp;
+import { useToast } from "@/hooks/use-toast";
+
+// Dentro do componente:
+const { toast } = useToast();
+
+// Algures no JSX:
+<button onClick={() => toast({ title: "Teste ✅", description: "Toast a funcionar!" })}>
+  Testar Toast
+</button>
