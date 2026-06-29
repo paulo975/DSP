@@ -1,79 +1,90 @@
-import { VERSIONS } from "@/lib/dspDefaults";
-/**
- * DSPApp — Waves eMotion LV1 layout.
- *
- * Tab structure:
- *   INPUTS    — página 1: todos os input strips (phy + dante)
- *   OUTPUTS   — página 2: todos os output strips (phy + dante)
- *   METERS    — vue de metros
- *   MATRIX    — routing matrix
- *
- * Visual language:
- *   - Fundo base #141414 (não preto puro)
- *   - Bordas 0.5px, cor #282828
- *   - Superfícies: #1A1A1A (strips), #111 (sidebar), #0E0E0E (canvas)
- */
-import React, { useState } from "react";
-import { DspProvider, useDsp } from "@/lib/dspStore";
-import TopBar from "@/components/dsp/TopBar";
-import ChannelStrip from "@/components/dsp/ChannelStrip";
-import InputStrip from "@/components/dsp/InputStrip";
-import MatrixRouter from "@/components/dsp/MatrixRouter";
-import MetersView from "@/components/dsp/MetersView";
-import EqEditor from "@/components/dsp/EqEditor";
-import CompEditor from "@/components/dsp/CompEditor";
-import PresetManager from "@/components/dsp/PresetManager";
-import SelectedChannelPanel from "@/components/dsp/SelectedChannelPanel";
-import ChannelMapPrint from "@/components/dsp/ChannelMapPrint";
-import DspImportModal from "@/components/dsp/DspImportModal";
-import SceneBar from "@/components/dsp/SceneBar";
-import ProactiveProfileHint from "@/components/dsp/ProactiveProfileHint";
+const DSPShell = () => {
+  const [tab,        setTab]        = useState("outputs");
+  const [eqOutId,    setEqOutId]    = useState(null);
+  const [compOutId,  setCompOutId]  = useState(null);
+  const [presetsOpen,setPresetsOpen]= useState(false);
+  const [printOpen,  setPrintOpen]  = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+  const { readOnly } = useDsp();
+  const { toast } = useToast(); // ← ADICIONADO
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const T = {
-  bg:        "#141414",   // fundo base — não preto puro
-  surface:   "#1A1A1A",   // superfície de strips
-  sidebar:   "#111111",   // sidebar
-  canvas:    "#0E0E0E",   // canvas principal (ligeiramente mais escuro)
-  header:    "#0B0B0B",   // header de secção
-  border:    "#282828",   // borda padrão (0.5px)
-  borderMid: "#323232",   // borda média
-  text:      "#E8E8E8",   // texto primário
-  textDim:   "#888888",   // texto secundário
-  textMuted: "#444444",   // texto muito suave
-  orange:    "#FF6B00",
-  blue:      "#00B7FF",
-  green:     "#00FF41",
-  yellow:    "#FFD60A",
-  red:       "#FF3B30",
-  pink:      "#FF7AC6",
-  violet:    "#A855F7",
-  cyan:      "#22D3EE",
-};
-
-// ─── Sidebar esquerda — Master + controles globais ────────────────────────────
-const MasterSidebar = ({ tab, setTab }) => {
-  const { state, setMaster, clearAllSolo, setTalkback, readOnly } = useDsp();
-
-  const [time, setTime] = React.useState(new Date());
-  React.useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const pad = (n) => String(n).padStart(2, "0");
-
-  const tabs = [
-    { id: "inputs",  label: "INPUTS",  color: T.blue },
-    { id: "outputs", label: "OUTPUTS", color: T.orange },
-    { id: "meters",  label: "METERS",  color: T.green },
-    { id: "matrix",  label: "MATRIX",  color: T.textDim },
-  ];
+  const handleSelect = (id) => setSelectedId((cur) => (cur === id ? null : id));
 
   return (
     <div
-      className="flex flex-col shrink-0"
-      style={{ width: 96, background: T.sidebar, borderRight: `0.5px solid ${T.border}` }}
-      data-testid="master-sidebar"
+      className="dsp-shell"
+      style={{ height: "100vh", display: "flex", flexDirection: "column", background: T.bg, color: T.text, overflow: "hidden" }}
+      data-testid="dsp-shell"
+    >
+      <TopBar
+        tab={tab} setTab={setTab}
+        onOpenPresets={() => setPresetsOpen(true)}
+        onOpenPrint={() => setPrintOpen(true)}
+        onOpenImport={() => setImportOpen(true)}
+      />
+
+      <ProactiveProfileHint />
+
+      {readOnly && (
+        <div
+          style={{ background: T.yellow, color: "#000", padding: "4px 16px", fontSize: 9, fontFamily: "monospace", letterSpacing: "0.2em", textAlign: "center", fontWeight: "bold", borderBottom: `0.5px solid #a08800`, flexShrink: 0 }}
+          data-testid="readonly-banner"
+        >
+          🔒 READ-ONLY — Click LOCKED in sidebar to unlock
+        </div>
+      )}
+
+      <SceneBar />
+
+      {/* ← BOTÃO DE TESTE — remove depois de confirmar */}
+      <button
+        onClick={() => toast({ title: "Teste ✅", description: "Toast a funcionar!" })}
+        style={{ position: "fixed", bottom: 40, right: 20, zIndex: 9999, background: T.orange, color: "#000", border: "none", padding: "8px 16px", fontFamily: "monospace", fontSize: 11, fontWeight: "bold", cursor: "pointer" }}
+      >
+        TESTAR TOAST
+      </button>
+
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        <MasterSidebar tab={tab} setTab={setTab} />
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          {tab === "inputs"  && <InputsPage />}
+          {tab === "outputs" && (
+            <OutputsPage
+              onOpenEq={(id) => setEqOutId(id)}
+              onOpenComp={(id) => setCompOutId(id)}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+            />
+          )}
+          {tab === "meters"  && <MetersView />}
+          {tab === "matrix"  && (
+            <div inert={readOnly || undefined} style={{ flex: 1, overflow: "auto" }}>
+              <MatrixRouter />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <footer
+        style={{ flexShrink: 0, borderTop: `0.5px solid ${T.border}`, padding: "4px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", background: T.sidebar }}
+      >
+        <span style={{ fontFamily: "monospace", fontSize: 8, color: T.textMuted, letterSpacing: "0.15em" }}>
+          AudioSystem DSP Web · Web Audio API
+        </span>
+        <span style={{ fontFamily: "monospace", fontSize: 8, color: T.textMuted, letterSpacing: "0.15em" }} data-testid="footer-state-saved">
+          {readOnly ? "🔒 Read-Only" : "Auto-saved · localStorage"}
+        </span>
+      </footer>
+
+      {eqOutId    && <EqEditor outputId={eqOutId} onClose={() => setEqOutId(null)} />}
+      {compOutId  && <CompEditor outputId={compOutId} onClose={() => setCompOutId(null)} />}
+      {presetsOpen && <PresetManager onClose={() => setPresetsOpen(false)} />}
+      {importOpen  && <DspImportModal onClose={() => setImportOpen(false)} />}
+      {printOpen   && <div className="print-host"><ChannelMapPrint onClose={() => setPrintOpen(false)} /></div>}
+    </div>
+  );
+};ter-sidebar"
     >
       {/* Brand */}
       <div style={{ padding: "10px 10px 8px", borderBottom: `0.5px solid ${T.border}` }}>
