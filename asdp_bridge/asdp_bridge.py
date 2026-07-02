@@ -24,6 +24,29 @@ Or build a clickable .app on your Mac:
     pip install pyinstaller websockets
     pyinstaller --onefile --windowed --name "ASDP-Bridge" asdp_bridge.py
     open dist/ASDP-Bridge.app
+
+---------------------------------------------------------------------------
+CHANGELOG (reconciliação contra 10 capturas novas, ver
+Reconciliacao_Bridge_vs_Capturas.md):
+  * FIX: eq_value_payload() mandava o prefixo `01 00`; o tráfego real
+    (Composer/app oficial) usa `00 00`. Trocado — pode ter sido a causa de
+    ajustes de EQ não pegarem no hardware.
+  * NEW: EQ agora manda "selecionar banda" (sub 0x0002) e "ativar banda"
+    (sub 0x0001) antes do primeiro ajuste de freq/ganho/Q de cada banda,
+    replicando o que o software oficial faz e que o bridge não fazia.
+  * NEW: Compressor (param_id 0x0023) e Gate (param_id 0x0003) — não
+    existiam antes. A escala exata (dB → valor bruto) NÃO está confirmada
+    contra o hardware real — cmd_comp()/cmd_gate() recebem o valor bruto
+    (int16) por enquanto; calibrar contra um valor conhecido antes de usar
+    em produção.
+  * NOTE: cmd_fader() (CMD_FADER / 0x002D) NÃO foi alterado — nas capturas
+    de "down"/"Gain" o ajuste de ganho real trafegou como frames de
+    parâmetro (0x012B), não como CMD_FADER. Não mudei isso porque ainda
+    não sabemos se é um controle diferente (trim) ou se o fader principal
+    também deveria usar 0x012B — precisa de uma captura isolada movendo só
+    o fader principal para decidir. Ver seção 5 do documento de
+    reconciliação.
+---------------------------------------------------------------------------
 """
 import asyncio
 import json
@@ -63,10 +86,17 @@ PARAM_PHASE_BASE = 0x0127   # + channel index → (PARAM_PHASE_BASE + ch, 0x0002
 PARAM_DELAY_BASE = 0x00F4   # + channel index → (PARAM_DELAY_BASE + ch, 0x0002)
 # EQ: param_id = 0x0061 + band_index (0..4 for 5-band PEQ)
 PARAM_EQ_BASE    = 0x0061   # + band → sub_param selects freq/gain/Q
+PARAM_EQ_SUB_ENABLE = 0x0001   # NEW — enable/select this EQ band before adjusting it
+PARAM_EQ_SUB_SELECT = 0x0002   # NEW — "which band is focused" (observed in captures)
 PARAM_EQ_SUB_FREQ = 0x0003
 PARAM_EQ_SUB_GAIN = 0x0004
 PARAM_EQ_SUB_Q    = 0x0005
 PARAM_MATRIX = (0x00A6, 0x0001)   # value = <row><col><state><pad>
+
+# NEW — Compressor and Gate (decoded from captures, absent from the original
+# 3-capture analysis). Value scale (raw int16 -> dB) is NOT confirmed yet.
+PARAM_COMPRESSOR_BASE = 0x0023   # sub 0x0001 = select/focus, sub 0x0002 = value
+PARAM_GATE_BASE = 0x0003         # sub 0x0002 = value
 
 # Meter packet headers
 METER_PEAK_HEADER = b"\xA5\x5A\xF0\x03"   # 1024-byte peak meter frame
@@ -93,6 +123,12 @@ def _db_to_fader_idx(db: float) -> int:
 
     This matches the behaviour observed in the official AudioSystem software
     where the fader knob sits at ~78% of travel at unity gain.
+
+    ⚠ UNVERIFIED: no CMD_FADER (0x002D) frame was found in the "down"/"Gain"
+    captures used for the reconciliation pass — real gain changes there rode
+    on param_id 0x012B instead. This function (and the CMD_FADER path as a
+    whole) has not been re-validated against real hardware traffic. Confirm
+    with an isolated capture of the main fader before relying on this.
     """
     db = max(_FADER_MIN_DB, min(db, _FADER_MAX_DB))
     if db <= _FADER_UNITY_DB:
@@ -183,12 +219,59 @@ def delay_payload(ms: int) -> bytes:
 
 
 def eq_value_payload(raw_value: int) -> bytes:
-    """EQ values: prefix 01 00 then LE16 of the scaled value."""
-    return b"\x01\x00" + max(-32768, min(raw_value, 32767)).to_bytes(2, "little", signed=True)
+    """
+    EQ freq/gain/Q values: 2 leading zero bytes, then LE16 of the scaled value.
+
+    FIX (reconciliation pass): the original code prefixed this with `01 00`,
+    assumed to be an "enable this axis" flag. Real captured traffic
+    (off.pcapng, sub 0x0003/0x0004/0x0005) shows the prefix is always
+    `00 00`, never `01 00`. Corrected here.
+    """
+    return b"\x00\x00" + max(-32768, min(raw_value, 32767)).to_bytes(2, "little", signed=True)
+
+
+def eq_enable_payload(enabled: bool) -> bytes:
+    """
+    NEW: EQ band enable/disable (sub 0x0001). Captured as a plain 4-byte LE
+    integer (0 or 1), not the `00 00 <value>` envelope used by freq/gain/Q.
+    """
+    return (1 if enabled else 0).to_bytes(4, "little")
+
+
+def eq_select_payload(band: int, secondary: int = 0) -> bytes:
+    """
+    NEW: EQ band select (sub 0x0002). Captured as a plain 4-byte LE integer
+    (band index 0..4). A second field (byte 2) was seen toggling 0→1 later
+    in the capture — meaning/purpose unconfirmed, exposed here as
+    `secondary` in case it turns out to matter (defaults to 0).
+    """
+    return bytes([band & 0xFF, secondary & 0xFF, 0x00, 0x00])
 
 
 def matrix_payload(row: int, col: int, on: bool) -> bytes:
     return bytes([row & 0xFF, col & 0xFF, 1 if on else 0, 0])
+
+
+def comp_gate_payload(raw_value: int) -> bytes:
+    """
+    NEW: Compressor / Gate value payload (sub 0x0002). Captured as a plain
+    signed int16 LE in the first 2 bytes, 2 trailing zero bytes.
+
+    ⚠ UNVERIFIED SCALE: the mapping from this raw value to dB is not
+    confirmed — captures only show it changing monotonically as a knob was
+    dragged. Calibrate against a known threshold value on real hardware
+    before trusting a dB conversion.
+    """
+    return max(-32768, min(raw_value, 32767)).to_bytes(2, "little", signed=True) + b"\x00\x00"
+
+
+def select_payload() -> bytes:
+    """
+    NEW: generic "begin edit / select control" payload (sub 0x0001), seen
+    once at the start of a Compressor edit in captures: `01 00 00 00 00 00`
+    truncated to 4 bytes for our 24-byte frame -> `01 00 00 00`.
+    """
+    return b"\x01\x00\x00\x00"
 
 
 # ---------- UDP transport -----------------------------------------------------
@@ -210,6 +293,9 @@ class DspLink:
         self.last_peaks: list[float] = [-120.0] * 32
         self.last_rms: list[float]   = [-120.0] * 32
         self.dsp_seen = False
+        # NEW — tracks which (channel, band) EQ bands we've already sent the
+        # enable/select handshake for, so we only send it once per band.
+        self._eq_bands_armed: set[tuple[int, int]] = set()
 
     def _next_ctr(self) -> int:
         with self._lock:
@@ -253,6 +339,20 @@ class DspLink:
         param = (PARAM_DELAY_BASE + channel, 0x0002)
         self.send_param(param, delay_payload(ms))
 
+    def _arm_eq_band(self, channel: int, band: int, param_id_base: int) -> None:
+        """
+        NEW: send the "select band" + "enable band" frames once per
+        (channel, band), before the first freq/gain/Q adjustment. Mirrors
+        the sequence observed in real captures (sub 0x0002 then 0x0001)
+        that the original bridge never sent.
+        """
+        key = (channel, band)
+        if key in self._eq_bands_armed:
+            return
+        self.send_param((param_id_base, PARAM_EQ_SUB_SELECT), eq_select_payload(band))
+        self.send_param((param_id_base, PARAM_EQ_SUB_ENABLE), eq_enable_payload(True))
+        self._eq_bands_armed.add(key)
+
     def cmd_eq(self, channel: int, band: int, freq_idx: int = None,
                gain_db: float = None, q: float = None) -> None:
         """
@@ -262,9 +362,13 @@ class DspLink:
         The channel offset is applied on top: param_id += channel * 5
         (5 bands per channel, layout inferred from protocol captures).
         sub_param selects freq (0x0003), gain (0x0004), or Q (0x0005).
+
+        NEW: automatically arms the band (select + enable) the first time
+        it's touched in this session — see _arm_eq_band().
         """
         band = max(0, min(band, 4))
         param_id_base = PARAM_EQ_BASE + (channel * 5) + band
+        self._arm_eq_band(channel, band, param_id_base)
         if freq_idx is not None:
             self.send_param((param_id_base, PARAM_EQ_SUB_FREQ),
                             eq_value_payload(int(freq_idx)))
@@ -277,6 +381,23 @@ class DspLink:
 
     def cmd_matrix(self, row: int, col: int, on: bool) -> None:
         self.send_param(PARAM_MATRIX, matrix_payload(row, col, on))
+
+    def cmd_comp(self, channel: int, raw_value: int) -> None:
+        """
+        NEW: Compressor threshold (or whichever single knob param_id 0x0023
+        controls — unconfirmed) for a channel. `raw_value` is the raw int16
+        seen on the wire, NOT dB — no confirmed dB scale exists yet.
+        """
+        param = (PARAM_COMPRESSOR_BASE, 0x0002)
+        self.send_param(param, comp_gate_payload(raw_value))
+
+    def cmd_gate(self, channel: int, raw_value: int) -> None:
+        """
+        NEW: Gate threshold for a channel. `raw_value` is the raw int16 seen
+        on the wire, NOT dB — no confirmed dB scale exists yet.
+        """
+        param = (PARAM_GATE_BASE, 0x0002)
+        self.send_param(param, comp_gate_payload(raw_value))
 
     # --- Meter receive --------------------------------------------------------
 
@@ -347,6 +468,8 @@ async def ws_handler(websocket, link: DspLink):
         {"op": "eq",     "channel": 0, "band": 0,
                          "freq": 250, "gain_db": 3.0, "q": 1.2}
         {"op": "matrix", "row": 0, "col": 0, "on": true}
+        {"op": "comp",   "channel": 0, "raw_value": -4789}   # NEW, unscaled
+        {"op": "gate",   "channel": 0, "raw_value": -5983}   # NEW, unscaled
         {"op": "ping"}
 
     Bridge → Browser (JSON):
@@ -406,6 +529,10 @@ async def ws_handler(websocket, link: DspLink):
                     )
                 elif op == "matrix":
                     link.cmd_matrix(int(msg["row"]), int(msg["col"]), bool(msg["on"]))
+                elif op == "comp":
+                    link.cmd_comp(int(msg["channel"]), int(msg["raw_value"]))
+                elif op == "gate":
+                    link.cmd_gate(int(msg["channel"]), int(msg["raw_value"]))
                 else:
                     await websocket.send(json.dumps({"op": "error", "msg": f"unknown op '{op}'"}))
                     continue
